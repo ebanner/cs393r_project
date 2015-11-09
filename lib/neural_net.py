@@ -14,3 +14,12 @@ def sigmoid_grad(f):
     
     """
     return f * (1-f)
+
+def sigmoid_inverse(z):
+    """Computes the inverse of sigmoid
+
+    z is the value that sigmoid produced
+
+    """
+
+    return -np.log(1/z - 1)
