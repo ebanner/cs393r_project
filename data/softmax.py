@@ -15,4 +15,4 @@ positives = [[1,1], [2,2]]
 negatives = [[2,1], [1,2]]
 
 X_train = np.array(positives+negatives).T
-ys_train = [0, 0, 1, 1]
+Y_train = [0, 0, 1, 1]
