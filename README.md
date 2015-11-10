@@ -29,6 +29,6 @@ As a side note, I will be implementing all of the models I use from scratch. Her
 - Fully-Connected Neural Network
 - Recurrent Neural Network
 
-I'm implementing linear regression because it's a good exercise.
+I'm implementing linear regression and a fully-connected neural network because they're building blocks in implementing softmax and RNNs, respectively.
 
 For each classifier, in order to gain intution, I'll implement a 1d version of it (no vectors nor matrics) and then extend it to handle arbitrarily-sized input. I was heavily inspired to take this approach by [Andrev Karpathy's Backpropagation tutorial](http://cs231n.github.io/optimization-2/). Thanks Andrev!
