@@ -1,4 +1,8 @@
 import numpy as np
+from collections import namedtuple
+
+Model = namedtuple('Model',['x', 'y', 'wh', 'bh', 'z', 'w1', 'b1', 'score1', 'w2', 'b2', 'score2', 'prob1', 'prob2', 'dscore1', 'dscore2', 'db1', 'dw1', 'db2', 'dw2', 'loss'])
+State = namedtuple('State', ['loss', 'dwh', 'dbh', 'dws', 'dbs'])
 
 def sigmoid(x):
     """Sigmoid function"""
