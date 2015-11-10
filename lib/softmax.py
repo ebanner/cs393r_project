@@ -1,6 +1,6 @@
 import numpy as np
 
-def softmax(scores):
+def softmax_2d(scores):
     """Compute the softmax between two numbers
     
     s1 is the number we're finding the softmax of
