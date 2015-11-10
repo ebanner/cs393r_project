@@ -3,7 +3,7 @@ For my final project for Peter Stone's Autonomous Robots class, I'm going to be 
 
 Because it is impossible to determine whether the ball is being shot on goal or it is just really close with just the most recent location of the ball (i.e. a markov assumption), I'm going to be using a recurrent neural network for this task. The hope is that a RNN will learn to fire when the ball is close AND it is getting closer.
 
-Extensions to this idea include using progressively less and less information to detect a shot on goal. One could imagine backing off to the ball-relative coordinates of the ball, as well as the size of the ball and the pan of the head, with the ultimate goal being to go straight from images to a decision.
+Extensions to this idea include using progressively less and less information to detect a shot on goal. One could imagine backing off to frame-relative coordinates of the ball in addition to the size of the ball and the pan of the head, with the ultimate goal of going straight from raw images to a decision.
 
 Because I'm as interested in the models as I am in the end application, I'm going to be implementing all of the discriminative models. Here are the ones I have planned:
 
