@@ -1,4 +1,4 @@
-# ml
+# A Better Goalie Behavior
 For my final project for Peter Stone's Autonomous Robots class, I'm going to be developing an improved goalie behavior. To accomplish this, instead of hand-tuning velocity thresholds, we treat shot detection as a classification problem. View the wiki on the right hand side for more details.
 
 As a side note, I will be implementing all of the models I use from scratch. Here are the ones I have planned:
