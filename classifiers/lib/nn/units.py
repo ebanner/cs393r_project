@@ -2,18 +2,9 @@ import numpy as np
 
 from collections import namedtuple
 
-from lib.neural_net import sigmoid, sigmoid_grad
-from lib.softmax import softmax_vectorized
+from nn.helper import sigmoid, sigmoid_grad
+from softmax import softmax_vectorized
 
-Model = namedtuple('Model', ['X', 'ys',
-                             'Wh', 'bh', 'Z', 'hidden',
-                             'Ws', 'bs',
-                             'scores', 'probs', 'dscores',
-                             'dbs', 'dWs',
-                             'dhidden', 'dZ',
-                             'dbh', 'dWh',
-                             'loss'])
-State = namedtuple('State', ['loss', 'dWh', 'dbh', 'dWs', 'dbs'])
 
 class Unit:
     """Interface for a unit in a neural network
@@ -64,7 +55,7 @@ class SoftmaxCrossEntropy(Unit):
 
         # Loss
         losses = -np.log(y_hats)
-        loss = sum(losses)
+        loss = losses.sum()
         
         return loss, losses, self.probs
     
