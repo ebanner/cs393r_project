@@ -189,8 +189,8 @@ class NeuralNetwork:
         dbs_error = abs(numerical_dbs - analytic_dbs) / (abs(numerical_dbs) + abs(analytic_dbs))
 
         try:
-            assert(np.linalg.norm(dWh_error) < 1e-6 and np.linalg.norm(dbh_error) < 1e-6
-                  and np.linalg.norm(dWs_error) < 1e-6 and np.linalg.norm(dbs_error) < 1e-6)
+            assert(np.linalg.norm(dWh_error) < 1e-5 and np.linalg.norm(dbh_error) < 1e-5
+                  and np.linalg.norm(dWs_error) < 1e-5 and np.linalg.norm(dbs_error) < 1e-5)
         except AssertionError:
             warn('Gradient check failed!')
             warn('dWh relative error: {}'.format(dWh_error))
