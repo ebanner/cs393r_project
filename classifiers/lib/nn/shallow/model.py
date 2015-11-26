@@ -2,8 +2,8 @@ import numpy as np
 
 from softmax import softmax_vectorized
 
-from nn.helper import State, Model, sigmoid
-from nn.units import Affine, Sigmoid, SoftmaxCrossEntropy
+from nn.shallow.helper import State, Model, sigmoid
+from nn.shallow.units import Affine, Sigmoid, SoftmaxCrossEntropy
 
 import logging
 from logging import warning as warn

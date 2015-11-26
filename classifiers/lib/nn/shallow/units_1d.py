@@ -1,7 +1,7 @@
 import numpy as np
 
-from lib.softmax import softmax_2d
-from lib.neural_net import sigmoid, sigmoid_grad
+from softmax import softmax_2d
+from nn.shallow.helper import sigmoid, sigmoid_grad
 
 class Unit:
     """Interface for a unit in a neural network

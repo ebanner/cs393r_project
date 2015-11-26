@@ -2,7 +2,7 @@ import numpy as np
 
 from collections import namedtuple
 
-from nn.helper import sigmoid, sigmoid_grad
+from nn.deep.helper import sigmoid, sigmoid_grad
 from softmax import softmax_vectorized
 
 
