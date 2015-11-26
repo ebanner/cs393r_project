@@ -52,11 +52,14 @@ class NeuralNetwork:
         self.batch_index = 0
 
         # Initialize params?
-        layer_sizes = [self.N] + Hs + [C]
-        self.params = {
-                'Ws': list(random_Ws(layer_sizes)),
-                'bs': list(random_bs(layer_sizes))
-        }
+        if not params:
+            layer_sizes = [self.N] + Hs + [C]
+            self.params = {
+                    'Ws': list(random_Ws(layer_sizes)),
+                    'bs': list(random_bs(layer_sizes))
+            }
+        else:
+            self.params = params
 
         self.learning_rate = learning_rate
         self.regularizer = regularizer
@@ -77,14 +80,11 @@ class NeuralNetwork:
         
     def predict(self, X):
         """Return the probability of x belonging to either class"""
-        
-        hidden = sigmoid(self.Wh @ X + self.bh)
-        scores = self.Ws @ hidden + self.bs
-        probs = softmax_vectorized(scores)
+        probs = self.forward_backward_prop(predict=True)
         
         return probs.argmax(axis=0)
         
-    def forward_backward_prop(self, params=None):
+    def forward_backward_prop(self, params=None, predict=False):
         """Perform forward and backward prop over a minibatch of training examples
         
         Returns loss and gradients
@@ -108,6 +108,10 @@ class NeuralNetwork:
         # Power through the softmax and cross-entropy layers
         scores = affines[-1].forward(hidden, Ws[-1], bs[-1])
         loss, losses, probs = softmax_ce.forward(scores, ys)
+
+        # Time to get out of here?
+        if predict:
+            return probs
         
         # Backprop!
         dscores = softmax_ce.backward(1)
