@@ -2,8 +2,8 @@ import numpy as np
 
 from softmax import softmax_vectorized
 
-from nn.helper import State, Model, sigmoid, random_Ws, random_bs
-from nn.units import Affine, Sigmoid, SoftmaxCrossEntropy
+from nn.deep.helper import State, Model, sigmoid, random_Ws, random_bs
+from nn.deep.units import Affine, Sigmoid, SoftmaxCrossEntropy
 
 import logging
 from logging import warning as warn
@@ -22,7 +22,7 @@ class NeuralNetwork:
     the last training example in the minibatch
     
     """
-    def __init__(self, X, ys_train, H, C,
+    def __init__(self, X, ys_train, Hs, C,
             params=None, learning_rate=0.001, regularizer=1., batch_size=None,
             gradient_checking=False, inspect=False):
         """Initializes neural network classifier
@@ -31,16 +31,11 @@ class NeuralNetwork:
         ----------
         X : N x M 2d array containing training input examples
         ys_train : length M list of labels
-        H : size of hidden layer
-        L : number of hidden layers
+        Hs : number of units in each hidden layer
         C : number of target classes
 
         params : dict of params that capture the neural network. dict should
-        look like this:
-            {'W': [W_1, W_2, ..., W_L],
-             'b': [b1, b2, ..., b_L]}
-        Let h_i and h_j be the sizes of the layers of hidden layer i and j where
-        j = i+1. Then W_i has shape h_j x N, where N is the minibatch size.
+        look like this: {'Ws': [W_1, W_2, ..., W_L], 'bs': [b1, b2, ..., b}
 
         learning_rate : learning rate constant
         regularizer : regularization constant
@@ -50,7 +45,6 @@ class NeuralNetwork:
         
         """
         (self.N, self.M) = X.shape
-        self.C = C
         
         self.X_train, self.ys_train = X, ys_train
 
@@ -58,10 +52,10 @@ class NeuralNetwork:
         self.batch_index = 0
 
         # Initialize params?
-        layer_sizes = [self.N] + H + [self.C]
+        layer_sizes = [self.N] + Hs + [C]
         self.params = {
-                'Ws': np.array(list(random_Ws(layer_sizes))),
-                'bs': np.array(list(random_bs(layer_sizes))),
+                'Ws': list(random_Ws(layer_sizes)),
+                'bs': list(random_bs(layer_sizes))
         }
 
         self.learning_rate = learning_rate
@@ -70,17 +64,15 @@ class NeuralNetwork:
         self.gradient_checking = gradient_checking
         self.inspect = inspect
 
-        # Initialize the friggin' network
-        L = len(H)
-        self.affines = [Affine() for _ in range(1+L)]
+        # Initialize the network
+        L = len(Hs)
+        self.affines = [Affine() for _ in range(1+L)] # Plus 1 for the input layer
         self.sigmoids = [Sigmoid() for _ in range(L)]
         self.softmax_ce = SoftmaxCrossEntropy()
         
         # Info from the *last* minibatch that was used to learn from
         self.X, self.ys = None, None
-        self.Z, self.hidden = None, None
-        self.scores, self.dscores = None, None
-        self.probs = None
+        self.gradients = None
         self.loss = None
         
     def predict(self, X):
@@ -113,10 +105,8 @@ class NeuralNetwork:
             Z = affine.forward(hidden, W, b)
             hidden = sigmoid.forward(Z)
 
-        # Power through to the doorstep of the softmax layer
+        # Power through the softmax and cross-entropy layers
         scores = affines[-1].forward(hidden, Ws[-1], bs[-1])
-
-        # Softmax + Cross Entropy layer
         loss, losses, probs = softmax_ce.forward(scores, ys)
         
         # Backprop!
@@ -127,16 +117,23 @@ class NeuralNetwork:
             dhidden = affine.backward(dZ)
 
         # Accumulate gradients
-        dWs = np.array([affine.dW for affine in affines])
-        dbs = np.array([affine.db for affine in affines])
+        dWs = [affine.dW for affine in affines]
+        dbs = [affine.db for affine in affines]
 
         # Regularization
         loss += self.regularizer * \
-                0.5*(np.sum(np.sum(dW**2) for dW in dWs) + np.sum(np.sum(db**2) for db in dbs))
-        dWs += self.regularizer*Ws
-        dbs += self.regularizer*bs
+                0.5*(np.sum(np.sum(W**2) for W in Ws) + np.sum(np.sum(b**2) for b in bs))
 
-        gradients = {'loss': loss/self.M, 'dWs': dWs/self.M, 'dbs': dbs/self.M}
+        # Normalize while we're at it
+        for i, W in enumerate(Ws):
+            dWs[i] += (self.regularizer*W)
+            dWs[i] /= self.M
+
+        for i, b in enumerate(bs):
+            dbs[i] += (self.regularizer*b)
+            dbs[i] /= self.M
+
+        gradients = {'loss': loss/self.M, 'dWs': dWs, 'dbs': dbs}
         
         # Log additional info?
         if self.inspect:
@@ -186,12 +183,13 @@ class NeuralNetwork:
         numerical_gradients = {p_symbol: self.numerical_gradients(p_symbol) for p_symbol in ('Ws', 'bs')}
 
         # Compute relative error
-        for (p_symbol, num_grad), (p_symbol, ana_grad) in \
+        for (p_symbol, num_grads), (p_symbol, ana_grads) in \
         zip(sorted(analytic_gradients.items()), sorted(numerical_gradients.items())):
-            errors = abs(num_grad - ana_grad) / (abs(num_grad) + abs(ana_grad))
-            if np.sum(np.linalg.norm(error) for error in errors) > 1e-5:
-                warn('Gradient check failed!')
-                warn('{} relative error: {}'.format(p_symbol, errors))
+            for num_grad, ana_grad in zip(num_grads, ana_grads):
+                error = abs(num_grad - ana_grad) / (abs(num_grad) + abs(ana_grad))
+                if np.linalg.norm(error) > 1e-5:
+                    warn('Gradient check failed!')
+                    warn('{} relative error: {}'.format(p_symbol, error))
             
     def numerical_gradients(self, param_symbol):
         """Compute numerical gradients of L with respect to param_symbol
@@ -203,7 +201,10 @@ class NeuralNetwork:
 
         """
         param = self.params[param_symbol]
-        dps = param[:]
+        dps = [0]*len(param)
+        for i, p in enumerate(param):
+            dps[i] = np.zeros_like(p)
+
         params = {'Ws': self.params['Ws'], 'bs': self.params['bs']}
         
         step = 1e-5
@@ -240,4 +241,4 @@ class NeuralNetwork:
         """Get a snapshot of the model's most recent activity"""
         
         return Model(self.X, self.ys,
-                self.parmams, self.gradients, self.loss)
+                self.params, self.gradients, self.loss)

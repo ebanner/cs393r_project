@@ -4,14 +4,7 @@ from collections import namedtuple
 # Model = namedtuple('Model',['x', 'y', 'wh', 'bh', 'z', 'w1', 'b1', 'score1', 'w2', 'b2', 'score2', 'prob1', 'prob2', 'dscore1', 'dscore2', 'db1', 'dw1', 'db2', 'dw2', 'loss'])
 # State = namedtuple('State', ['loss', 'dwh', 'dbh', 'dws', 'dbs'])
 
-Model = namedtuple('Model', ['X', 'ys',
-                             'Wh', 'bh', 'Z', 'hidden',
-                             'Ws', 'bs',
-                             'scores', 'probs', 'dscores',
-                             'dbs', 'dWs',
-                             'dhidden', 'dZ',
-                             'dbh', 'dWh',
-                             'loss'])
+Model = namedtuple('Model', ['X', 'ys', 'params', 'gradients', 'loss'])
 State = namedtuple('State', ['loss', 'dWh', 'dbh', 'dWs', 'dbs'])
 
 
