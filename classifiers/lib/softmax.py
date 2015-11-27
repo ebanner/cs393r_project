@@ -2,6 +2,11 @@ import numpy as np
 
 from collections import namedtuple
 
+import logging
+from logging import warning as warn
+
+logger = logging.getLogger()
+logger.setLevel(logging.WARNING)
 
 Model = namedtuple('Model', ['X', 'ys', 'W', 'b', 'scores', 'probs', 'dscores', 'db', 'dW', 'loss'])
 State = namedtuple('State', ['loss', 'dws', 'dbs'])
