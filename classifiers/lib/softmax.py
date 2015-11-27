@@ -175,7 +175,7 @@ class Softmax:
         db_error = abs(numerical_db - analytic_db) / (abs(numerical_db) + abs(analytic_db))
 
         try:
-            assert(np.linalg.norm(dW_error) < 1e-6 and np.linalg.norm(db_error) < 1e-6)
+            assert(np.linalg.norm(dW_error) < 1e-5 and np.linalg.norm(db_error) < 1e-5)
         except AssertionError:
             warn('Gradient check failed!')
             warn('dW relative error: {}'.format(dW_error))
