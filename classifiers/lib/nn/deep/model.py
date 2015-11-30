@@ -60,7 +60,7 @@ class NeuralNetwork:
             }
         else:
             self.params = params
-
+            
         self.learning_rate = learning_rate
         self.regularizer = regularizer
         

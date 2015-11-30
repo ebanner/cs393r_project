@@ -23,7 +23,7 @@ class Affine(Unit):
     def forward(self, A, W, b):
         self.A, self.W, self.b = A, W, b
         
-        return W @ A + b
+        return np.dot(W, A) + b
     
     def backward(self, error):
         """Computer gradients of inputs with respect the incoming gradient
@@ -34,8 +34,8 @@ class Affine(Unit):
 
         """
         self.db = error.sum(axis=1, keepdims=True)
-        self.dW = error @ self.A.T
-        dA = self.W.T @ error
+        self.dW = np.dot(error, self.A.T)
+        dA = np.dot(self.W.T, error)
         
         return dA
     
