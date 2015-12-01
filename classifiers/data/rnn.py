@@ -4,11 +4,9 @@
 # 1. Context matters!
 
 xs_train = [
-        [2,2],
-        [1,2]
+        [1]
 ]
 
 ys_train = [
-        [0,0],
-        [0,1]
+        [1]
 ]
