@@ -24,3 +24,6 @@ X_train = np.array([
 Y_train = np.array(
     [0, 0,  2, 1]
 )
+
+long_X_train = np.array([np.random.randint(10) for _ in range(1000)])
+long_Y_train = np.array([np.random.randint(2) for _ in range(1000)])
