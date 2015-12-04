@@ -201,6 +201,7 @@ class RecurrentNeuralNetwork:
             self.loss = loss
             self.dWhh, self.dbhh, self.dWxh, self.dbxh = dWhh, dbhh, dWxh, dbxh
             self.dWs, self.dbs = dWs, dbs
+            self.hiddens = hiddens
             self.dhiddens = dhiddens
             self.dhiddens_local, self.dhiddens_downstream = dhiddens_local, dhiddens_downstream
         
@@ -226,7 +227,7 @@ class RecurrentNeuralNetwork:
 
         # Softmax weight gradients
         dWs, dbs = np.clip(grads.dWs, -5, 5), np.clip(grads.dbs, -5, 5) 
-        
+
         # Update weights
         #
         # Hidden and input weights
@@ -302,6 +303,7 @@ class RecurrentNeuralNetwork:
         """Get a snapshot of the model's most recent activity"""
         
         return Snapshot(self.xs, self.ys,
+                        self.hiddens,
                         self.Whh, self.bhh, self.Wxh, self.bxh, self.Ws, self.bs,
                         self.dWhh, self.dbhh, self.dWxh, self.dbxh, self.dWs, self.dbs,
                         self.dhiddens, self.dhiddens_local, self.dhiddens_downstream,
