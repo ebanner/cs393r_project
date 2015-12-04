@@ -5,6 +5,12 @@ from softmax import softmax_vectorized
 
 from rnn.support import State, Snapshot
 
+import logging
+from logging import warning as warn
+
+logger = logging.getLogger()
+logger.setLevel(logging.WARNING)
+
 class RecurrentNeuralNetwork:
     """Initialize model parameters
     
@@ -40,11 +46,11 @@ class RecurrentNeuralNetwork:
         inspect : boolean whether to log all data after every learning session from a training example
         
         """
-        (self.N, self.M) = X.shape
+        (self.N, self.T) = X.shape
         self.H = H
         
         self.X_train, self.ys_train = X, ys_train
-        
+
         # Hidden and input weights
         self.Whh = np.random.randn(H, H) if not type(Whh) == np.ndarray else Whh
         self.bhh = np.random.randn(H, 1) if not type(bhh) == np.ndarray else bhh
@@ -55,13 +61,14 @@ class RecurrentNeuralNetwork:
         self.Ws = np.random.randn(C, H) if not type(Ws) == np.ndarray else Ws
         self.bs = np.random.randn(C, 1) if not type(bs) == np.ndarray else bs
         
-        self.rollout = self.M if not rollout else rollout
+        self.rollout = self.T if not rollout else rollout
         self.learning_rate = learning_rate
         self.regularizer = regularizer
         
         self.gradient_checking = gradient_checking
         self.inspect = inspect
         
+        # One-indexed!
         self.train_index = 0
         
     def predict(self, X):
@@ -92,28 +99,37 @@ class RecurrentNeuralNetwork:
         Ws = self.Ws if not type(Ws) == np.ndarray else Ws
         bs = self.bs if not type(bs) == np.ndarray else bs
         
-        # rollout and train_index will be set to T and 0 respectively if we are predicting
         rollout = self.rollout if not rollout else rollout
         train_index = self.train_index if not train_index else train_index
-        
-        # Passed in X to predict?
-        X = self.X_train[:, train_index:train_index+rollout] if not type(X) == np.ndarray else X
-        ys = self.ys_train[train_index:train_index+rollout] if not type(ys) == np.ndarray else ys
-        
+
+        # Get next portion of sequence to train on
+        if not type(X) == np.ndarray:
+            X = self.X_train[:, train_index:train_index+rollout] 
+            ys = self.ys_train[train_index:train_index+rollout]
+            
+            # Got to the end and need to wrap around?
+            if train_index+rollout > self.T:
+                rollover_index = (train_index+rollout) % self.T
+
+                X = np.hstack([X, self.X_train[:, :rollover_index]])
+                ys = np.hstack([ys, self.ys_train[:rollover_index]])
+
         # Append column of zeros to align X and Y with natural time
-        N, T = X.shape
-        X, ys = np.hstack([np.zeros((N, 1)), X]), np.hstack([np.zeros(1, dtype=np.int), ys])
-        
+        X, ys = np.hstack([np.zeros((self.N, 1)), X]), np.hstack([np.zeros(1, dtype=np.int), ys])
+
         # Forward pass!
         dWhh, dbhh = np.zeros_like(Whh), np.zeros_like(bhh)
         dWxh, dbxh = np.zeros_like(Wxh), np.zeros_like(bxh)
         dWs, dbs = np.zeros_like(Ws), np.zeros_like(bs)
         
         loss = 0.
-        hiddens, dhiddens = {t:np.ones((self.H, 1)) for t in range(rollout+1)}, {t:np.zeros((self.H, 1)) for t in range(rollout+1)}
-        dhiddens_downstream, dhiddens_local = {t:np.zeros((self.H, 1)) for t in range(rollout+1)}, {t:np.zeros((self.H, 1)) for t in range(rollout+1)}
-        scores, probs = {t:None for t in range(1, rollout+1)}, {t:None for t in range(1, rollout+1)}
-        for t in range(1, T+1):
+        hiddens = {t: np.ones((self.H, 1)) for t in range(rollout+1)}
+        dhiddens = {t: np.zeros((self.H, 1)) for t in range(rollout+1)}
+        dhiddens_downstream = {t: np.zeros((self.H, 1)) for t in range(rollout+1)}
+        dhiddens_local = {t: np.zeros((self.H, 1)) for t in range(rollout+1)}
+        scores = {t: None for t in range(1, rollout+1)}
+        probs = {t: None for t in range(1, rollout+1)}
+        for t in range(1, rollout+1):
             # Previous hidden layer and input at time t
             Z = (Whh @ hiddens[t-1] + bhh) + (Wxh @ X[:,[t]] + bxh)
             hiddens[t] = sigmoid(Z)
@@ -134,7 +150,7 @@ class RecurrentNeuralNetwork:
             return scores
         
         # Backpropagate!
-        backwards = list(reversed(range(T+1)))
+        backwards = list(reversed(range(rollout+1)))
         for t in backwards[:-1]:
             # Scores
             dscores = probs[t]
@@ -204,7 +220,7 @@ class RecurrentNeuralNetwork:
         self.bs = self.bs - self.learning_rate*dbs
         
         # Update batch index so the next time the next batch in line is used
-        self.train_index = (self.train_index+self.rollout) % self.M
+        self.train_index = (self.train_index+self.rollout) % self.T
         
         # Log additional info?
         if self.inspect:
@@ -240,9 +256,9 @@ class RecurrentNeuralNetwork:
         dbs_error = abs(num_dbs - analytic_dbs) / (abs(num_dbs) + abs(analytic_dbs))
 
         try:
-            assert(np.linalg.norm(dWhh_error) < 1e-6 and np.linalg.norm(dbhh_error) < 1e-6 and
-                   np.linalg.norm(dWxh_error) < 1e-6 and np.linalg.norm(dbxh_error) < 1e-6 and
-                   np.linalg.norm(dWs_error) < 1e-6 and np.linalg.norm(dbs_error) < 1e-6)
+            assert(np.linalg.norm(dWhh_error) < 1e-5 and np.linalg.norm(dbhh_error) < 1e-5 and
+                   np.linalg.norm(dWxh_error) < 1e-5 and np.linalg.norm(dbxh_error) < 1e-5 and
+                   np.linalg.norm(dWs_error) < 1e-5 and np.linalg.norm(dbs_error) < 1e-5)
         except AssertionError:
             warn('Gradient check failed!')
             
