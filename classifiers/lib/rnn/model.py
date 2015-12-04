@@ -3,7 +3,7 @@ import numpy as np
 from nn.shallow.helper import sigmoid, sigmoid_grad
 from softmax import softmax_vectorized
 
-from rnn.support import State, Snapshot
+from rnn.support import State, Snapshot, Gradients
 
 import logging
 from logging import warning as warn
@@ -52,10 +52,13 @@ class RecurrentNeuralNetwork:
         self.X_train, self.ys_train = X, ys_train
 
         # Hidden and input weights
-        self.Whh = np.random.randn(H, H) if not type(Whh) == np.ndarray else Whh
+        self.Whh = np.identity(H) if not type(Whh) == np.ndarray else Whh
         self.bhh = np.random.randn(H, 1) if not type(bhh) == np.ndarray else bhh
         self.Wxh = np.random.randn(H, self.N) if not type(Wxh) == np.ndarray else Wxh
         self.bxh = np.random.randn(H, 1) if not type(bxh) == np.ndarray else bxh
+
+        # Current hidden state
+        self.hidden = np.zeros((H, 1))
         
         # Softmax weights
         self.Ws = np.random.randn(C, H) if not type(Ws) == np.ndarray else Ws
@@ -68,7 +71,6 @@ class RecurrentNeuralNetwork:
         self.gradient_checking = gradient_checking
         self.inspect = inspect
         
-        # One-indexed!
         self.train_index = 0
         
     def predict(self, X):
@@ -78,12 +80,17 @@ class RecurrentNeuralNetwork:
         N, T = X.shape
         ys = np.ones(T, dtype=np.int)
         
-        scores = self.forward_backward_prop(X, ys, rollout=T, predict=True)
+        new_hidden, scores = self.forward_backward_prop(X=X, ys=ys, rollout=T, predict=True)
         proper_scores = np.hstack([score for t, score in sorted(scores.items())])
+
+        # Update the hidden state
+        self.hidden = new_hidden
         
         return proper_scores, proper_scores.argmax(axis=0)
         
-    def forward_backward_prop(self, X=None, ys=None, rollout=None, train_index=None, Whh=None, bhh=None, Wxh=None, bxh=None, Ws=None, bs=None, predict=False):
+    def forward_backward_prop(self, X=None, ys=None, rollout=None, train_index=None,
+            Whh=None, bhh=None, Wxh=None, bxh=None, Ws=None, bs=None,
+            hidden=None, predict=False):
         """Perform forward and backward prop over a single training example
         
         Returns loss and gradients
@@ -99,6 +106,10 @@ class RecurrentNeuralNetwork:
         Ws = self.Ws if not type(Ws) == np.ndarray else Ws
         bs = self.bs if not type(bs) == np.ndarray else bs
         
+        # Initial hidden state
+        hidden = self.hidden if not type(hidden) == np.ndarray else hidden
+
+        # Where to start in the sequence and how far to go
         rollout = self.rollout if not rollout else rollout
         train_index = self.train_index if not train_index else train_index
 
@@ -123,12 +134,9 @@ class RecurrentNeuralNetwork:
         dWs, dbs = np.zeros_like(Ws), np.zeros_like(bs)
         
         loss = 0.
-        hiddens = {t: np.ones((self.H, 1)) for t in range(rollout+1)}
-        dhiddens = {t: np.zeros((self.H, 1)) for t in range(rollout+1)}
-        dhiddens_downstream = {t: np.zeros((self.H, 1)) for t in range(rollout+1)}
-        dhiddens_local = {t: np.zeros((self.H, 1)) for t in range(rollout+1)}
-        scores = {t: None for t in range(1, rollout+1)}
-        probs = {t: None for t in range(1, rollout+1)}
+        hiddens = {0: hidden}
+        dhiddens, dhiddens_downstream, dhiddens_local = {}, {rollout:np.zeros((self.H, 1))}, {}
+        scores, probs = {}, {}
         for t in range(1, rollout+1):
             # Previous hidden layer and input at time t
             Z = (Whh @ hiddens[t-1] + bhh) + (Wxh @ X[:,[t]] + bxh)
@@ -147,7 +155,7 @@ class RecurrentNeuralNetwork:
                                         np.sum(Wxh**2) + np.sum(bxh**2) +
                                         np.sum(Ws**2) + np.sum(bs**2))
         if predict:
-            return scores
+            return hiddens[rollout], scores
         
         # Backpropagate!
         backwards = list(reversed(range(rollout+1)))
@@ -160,9 +168,8 @@ class RecurrentNeuralNetwork:
             dbs += dscores
             dWs += dscores @ hiddens[t].T
 
-            # Karpathy optimization
             dhiddens_local[t] = Ws.T @ dscores
-            dhiddens[t] = dhiddens_local[t] + dhiddens_downstream[t]
+            dhiddens[t] = dhiddens_local[t] + dhiddens_downstream[t] # Karpathy optimization
             
             dZ = sigmoid_grad(hiddens[t]) * dhiddens[t]
 
@@ -197,7 +204,7 @@ class RecurrentNeuralNetwork:
             self.dhiddens = dhiddens
             self.dhiddens_local, self.dhiddens_downstream = dhiddens_local, dhiddens_downstream
         
-        return State(loss, dWhh, dbhh, dWxh, dbxh, dWs, dbs)
+        return State(loss, Gradients(dWhh, dbhh, dWxh, dbxh, dWs, dbs), hiddens[rollout])
     
     def learn(self):
         """Learn from a minibatch of training examples
@@ -205,10 +212,23 @@ class RecurrentNeuralNetwork:
         Run gradient descent on these examples
         
         """
-        loss, dWhh, dbhh, dWxh, dbxh, dWs, dbs = self.forward_backward_prop()
+        hidden = self.hidden
+        loss, grads, new_hidden = self.forward_backward_prop()
 
-        self.gradient_check(dWhh, dbhh, dWxh, dbxh, dWs, dbs)
+        self.gradient_check(grads, hidden=hidden)
+        self.hidden = new_hidden
+
+        # Clip gradients
+        #
+        # Hidden and input weight gradients
+        dWhh, dbhh = np.clip(grads.dWhh, -5, 5), np.clip(grads.dbhh, -5, 5)
+        dWxh, dbxh = np.clip(grads.dWxh, -5, 5), np.clip(grads.dbxh, -5, 5) 
+
+        # Softmax weight gradients
+        dWs, dbs = np.clip(grads.dWs, -5, 5), np.clip(grads.dbs, -5, 5) 
         
+        # Update weights
+        #
         # Hidden and input weights
         self.Whh = self.Whh - self.learning_rate*dWhh
         self.bhh = self.bhh - self.learning_rate*dbhh
@@ -222,11 +242,7 @@ class RecurrentNeuralNetwork:
         # Update batch index so the next time the next batch in line is used
         self.train_index = (self.train_index+self.rollout) % self.T
         
-        # Log additional info?
-        if self.inspect:
-            pass
-    
-    def gradient_check(self, analytic_dWhh, analytic_dbhh, analytic_dWxh, analytic_dbxh, analytic_dWs, analytic_dbs):
+    def gradient_check(self, analytic_grads, hidden):
         """Verify gradient correctness
         
         The analytic dWhh, dbhh, dWxh, dbxh, dWs, and dbs come from doing forward-backward
@@ -241,124 +257,45 @@ class RecurrentNeuralNetwork:
         if not self.gradient_checking:
             return
         
-        num_dWhh, num_dbhh, num_dWxh, num_dbxh, num_dWs, num_dbs = self.numerical_gradients()
+        numerical_grads = self.numerical_gradients(hidden)
 
         # Compute relative error
         #
         # Hidden and input differences
-        dWhh_error = abs(num_dWhh- analytic_dWhh) / (abs(num_dWhh) + abs(analytic_dWhh))
-        dbhh_error = abs(num_dbhh - analytic_dbhh) / (abs(num_dbhh) + abs(analytic_dbhh))
-        dWxh_error = abs(num_dWxh- analytic_dWxh) / (abs(num_dWxh) + abs(analytic_dWxh))
-        dbxh_error = abs(num_dbxh - analytic_dbxh) / (abs(num_dbxh) + abs(analytic_dbxh))
-        
-        # Softmax differences
-        dWs_error = abs(num_dWs - analytic_dWs) / (abs(num_dWs) + abs(analytic_dWs))
-        dbs_error = abs(num_dbs - analytic_dbs) / (abs(num_dbs) + abs(analytic_dbs))
+        for ana_grad, num_grad in zip(analytic_grads, numerical_grads):
+            relative_errors = np.abs(num_grad-ana_grad) / (np.abs(num_grad) + np.abs(ana_grad))
+            if np.linalg.norm(relative_errors) > 1e-5:
+                warn('Gradient check failed!')
 
-        try:
-            assert(np.linalg.norm(dWhh_error) < 1e-5 and np.linalg.norm(dbhh_error) < 1e-5 and
-                   np.linalg.norm(dWxh_error) < 1e-5 and np.linalg.norm(dbxh_error) < 1e-5 and
-                   np.linalg.norm(dWs_error) < 1e-5 and np.linalg.norm(dbs_error) < 1e-5)
-        except AssertionError:
-            warn('Gradient check failed!')
-            
-            # Hidden and input differences
-            warn('dWhh relative error: {}'.format(dWhh_error))
-            warn('dbhh relative error: {}'.format(dbhh_error))
-            warn('dWxh relative error: {}'.format(dWxh_error))
-            warn('dbxh relative error: {}'.format(dbxh_error))
-            
-            # Softmax differences
-            warn('dWs relative error: {}'.format(dWs_error))
-            warn('dbs relative error: {}'.format(dbs_error))
-            
-    def numerical_gradients(self):
-        """Compute numerical gradients of f with respect to self.Whh, self.bhh, self.Wxh, self.bxh, self.Ws, and self.bs
+    def numerical_gradients(self, hidden):
+        """Compute numerical gradients of f with respect the hidden, input, and
+        softmax weights
 
-        Returns approximation for df/dWhh, df/dbhh, df/dWhh, df/dbhh, df/dWs, df/dbs
+        Returns numerical approximations of these
 
         """
-        dWhh, dbhh = np.zeros_like(self.Whh), np.zeros_like(self.bhh)
-        dWxh, dbxh = np.zeros_like(self.Wxh), np.zeros_like(self.bxh)
-        dWs, dbs = np.zeros_like(self.Ws), np.zeros_like(self.bs)
-        
-        Whh, bhh, Wxh, bxh, Ws, bs = self.Whh, self.bhh, self.Wxh, self.bxh, self.Ws, self.bs
-        
         step = 1e-5
-    
-        # df/dWhh
-        h = np.zeros_like(self.Whh)
-        it = np.nditer(Whh, flags=['multi_index'])
-        while not it.finished:
-            ix = it.multi_index
-            h[ix] = step
-            
-            dWhh[ix] = (self.forward_backward_prop(Whh=Whh+h).loss - self.forward_backward_prop(Whh=Whh-h).loss) / (2*step)
+        params = {'Whh':self.Whh, 'bhh':self.bhh,
+                'Wxh':self.Wxh, 'bxh':self.bxh, 'Ws':self.Ws, 'bs':self.bs}
 
-            h[ix] = 0
-            it.iternext()
-            
-        # df/dbhh
-        h = np.zeros_like(self.bhh)
-        it = np.nditer(bhh, flags=['multi_index'])
-        while not it.finished:
-            ix = it.multi_index
-            h[ix] = step
-            
-            dbhh[ix] = (self.forward_backward_prop(bhh=bhh+h).loss - self.forward_backward_prop(bhh=bhh-h).loss) / (2*step)
+        gradients = {'dWhh':np.zeros_like(self.Whh), 'dbhh':np.zeros_like(self.bhh),
+                'dWxh':np.zeros_like(self.Wxh), 'dbxh':np.zeros_like(self.bxh),
+                'dWs':np.zeros_like(self.Ws), 'dbs':np.zeros_like(self.bs)}
 
-            h[ix] = 0
-            it.iternext()
-            
-        # df/dWxh
-        h = np.zeros_like(self.Wxh)
-        it = np.nditer(Wxh, flags=['multi_index'])
-        while not it.finished:
-            ix = it.multi_index
-            h[ix] = step
-            
-            dWxh[ix] = (self.forward_backward_prop(Wxh=Wxh+h).loss - self.forward_backward_prop(Wxh=Wxh-h).loss) / (2*step)
+        for pname, param in params.items():
+            h = np.zeros_like(param)
+            it = np.nditer(param, flags=['multi_index'])
+            while not it.finished:
+                ix = it.multi_index
+                h[ix] = step
+                
+                gradients['d'+pname][ix] = (self.forward_backward_prop(**{pname:param+h}, hidden=hidden).loss -
+                        self.forward_backward_prop(**{pname:param-h}, hidden=hidden).loss) / (2*step)
 
-            h[ix] = 0
-            it.iternext()
+                h[ix] = 0
+                it.iternext()
             
-        # df/dbhh
-        h = np.zeros_like(self.bxh)
-        it = np.nditer(bxh, flags=['multi_index'])
-        while not it.finished:
-            ix = it.multi_index
-            h[ix] = step
-            
-            dbxh[ix] = (self.forward_backward_prop(bxh=bxh+h).loss - self.forward_backward_prop(bxh=bxh-h).loss) / (2*step)
-
-            h[ix] = 0
-            it.iternext()
-            
-        # df/dWs
-        h = np.zeros_like(self.Ws)
-        it = np.nditer(Ws, flags=['multi_index'])
-        while not it.finished:
-            ix = it.multi_index
-            h[ix] = step
-            
-            dWs[ix] = (self.forward_backward_prop(Ws=Ws+h).loss - self.forward_backward_prop(Ws=Ws-h).loss) / (2*step)
-
-            h[ix] = 0
-            it.iternext()
-            
-        # df/dbs
-        h = np.zeros_like(self.bs)
-        it = np.nditer(bs, flags=['multi_index'])
-        while not it.finished:
-            ix = it.multi_index
-            h[ix] = step
-            
-            dbs[ix] = (self.forward_backward_prop(bs=bs+h).loss - self.forward_backward_prop(bs=bs-h).loss) / (2*step)
-
-            h[ix] = 0
-            it.iternext()
-
-        return dWhh, dbhh, dWxh, dbxh, dWs, dbs
+        return Gradients(**gradients)
 
     @property
     def info(self):
