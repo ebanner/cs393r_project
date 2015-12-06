@@ -53,9 +53,9 @@ class RecurrentNeuralNetwork:
 
         # Hidden and input weights
         self.Whh = np.identity(H) if not type(Whh) == np.ndarray else Whh
-        self.bhh = np.random.randn(H, 1) if not type(bhh) == np.ndarray else bhh
-        self.Wxh = np.random.randn(H, self.N) if not type(Wxh) == np.ndarray else Wxh
-        self.bxh = np.random.randn(H, 1) if not type(bxh) == np.ndarray else bxh
+        self.bhh = np.random.uniform(-.8, .8, (H, 1)) if not type(bhh) == np.ndarray else bhh
+        self.Wxh = np.random.uniform(-.8, .8, (H, self.N)) if not type(Wxh) == np.ndarray else Wxh
+        self.bxh = np.random.uniform(-.8, .8, (H, 1)) if not type(bxh) == np.ndarray else bxh
 
         # Current hidden state
         self.hidden = np.zeros((H, 1))
