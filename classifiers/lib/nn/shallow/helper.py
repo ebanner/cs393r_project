@@ -29,6 +29,17 @@ def sigmoid_grad(f):
     """
     return f * (1-f)
 
+def tanh_grad(f):
+    """tanh gradient function
+    
+    Compute the gradient for the sigmoid function
+    
+    - f is the sigmoid function value of your original input x
+    
+    """
+    return 1 - f**2
+
+
 def sigmoid_inverse(z):
     """Computes the inverse of sigmoid
 

@@ -1,6 +1,6 @@
 import numpy as np
 
-from nn.shallow.helper import sigmoid, sigmoid_grad
+from nn.shallow.helper import tanh_grad
 from softmax import softmax_vectorized
 
 from rnn.support import State, Snapshot, Gradients
@@ -140,7 +140,7 @@ class RecurrentNeuralNetwork:
         for t in range(1, rollout+1):
             # Previous hidden layer and input at time t
             Z = (Whh @ hiddens[t-1] + bhh) + (Wxh @ X[:,[t]] + bxh)
-            hiddens[t] = sigmoid(Z)
+            hiddens[t] = np.tanh(Z)
             
             # Softmax
             scores[t] = Ws @ hiddens[t] + bs
@@ -171,7 +171,7 @@ class RecurrentNeuralNetwork:
             dhiddens_local[t] = Ws.T @ dscores
             dhiddens[t] = dhiddens_local[t] + dhiddens_downstream[t] # Karpathy optimization
             
-            dZ = sigmoid_grad(hiddens[t]) * dhiddens[t]
+            dZ = tanh_grad(hiddens[t]) * dhiddens[t]
 
             # Input and hidden weights
             dbxh += dZ
