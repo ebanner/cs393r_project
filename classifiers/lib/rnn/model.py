@@ -139,11 +139,11 @@ class RecurrentNeuralNetwork:
         scores, probs = {}, {}
         for t in range(1, rollout+1):
             # Previous hidden layer and input at time t
-            Z = (Whh @ hiddens[t-1] + bhh) + (Wxh @ X[:,[t]] + bxh)
+            Z = (np.dot(Whh, hiddens[t-1]) + bhh) + (np.dot(Wxh, X[:,[t]]) + bxh)
             hiddens[t] = np.tanh(Z)
             
             # Softmax
-            scores[t] = Ws @ hiddens[t] + bs
+            scores[t] = np.dot(Ws, hiddens[t]) + bs
             probs[t] = softmax_vectorized(scores[t])
             y_hat = probs[t][ys[t]]
 
@@ -166,21 +166,21 @@ class RecurrentNeuralNetwork:
 
             # Softmax weights
             dbs += dscores
-            dWs += dscores @ hiddens[t].T
+            dWs += np.dot(dscores, hiddens[t].T)
 
-            dhiddens_local[t] = Ws.T @ dscores
+            dhiddens_local[t] = np.dot(Ws.T, dscores)
             dhiddens[t] = dhiddens_local[t] + dhiddens_downstream[t] # Karpathy optimization
             
             dZ = tanh_grad(hiddens[t]) * dhiddens[t]
 
             # Input and hidden weights
             dbxh += dZ
-            dWxh += dZ @ X[:,[t]].T
+            dWxh += np.dot(dZ, X[:,[t]].T)
             dbhh += dZ
-            dWhh += dZ @ hiddens[t-1].T
+            dWhh += np.dot(dZ, hiddens[t-1].T)
             
             # Set up incoming hidden weight gradient for previous time step
-            dhiddens_downstream[t-1] = Whh.T @ dZ
+            dhiddens_downstream[t-1] = np.dot(Whh.T, dZ)
         
         # Regularization
         #
@@ -290,8 +290,8 @@ class RecurrentNeuralNetwork:
                 ix = it.multi_index
                 h[ix] = step
                 
-                gradients['d'+pname][ix] = (self.forward_backward_prop(**{pname:param+h}, hidden=hidden).loss -
-                        self.forward_backward_prop(**{pname:param-h}, hidden=hidden).loss) / (2*step)
+                # gradients['d'+pname][ix] = (self.forward_backward_prop(**{pname:param+h}, hidden=hidden).loss -
+                #         self.forward_backward_prop(**{pname:param-h}, hidden=hidden).loss) / (2*step)
 
                 h[ix] = 0
                 it.iternext()

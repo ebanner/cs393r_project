@@ -80,11 +80,11 @@ class NeuralNetwork:
         
     def predict(self, X):
         """Return the probability of x belonging to either class"""
-        probs = self.forward_backward_prop(predict=True)
+        scores = self.forward_backward_prop(X, predict=True)
         
-        return probs.argmax(axis=0)
+        return scores, scores.argmax(axis=0)
         
-    def forward_backward_prop(self, params=None, predict=False):
+    def forward_backward_prop(self, X=None, params=None, predict=False):
         """Perform forward and backward prop over a minibatch of training examples
         
         Returns loss and gradients
@@ -96,7 +96,7 @@ class NeuralNetwork:
 
         # Get minibatch of training examples
         low, high = self.batch_index*self.batch_size, (self.batch_index+1)*self.batch_size
-        X = self.X_train[:, low:high].reshape(self.N, self.batch_size)
+        X = self.X_train[:, low:high].reshape(self.N, self.batch_size) if not type(X) == np.ndarray else X
         ys = self.ys_train[low:high]
 
         # Forward pass
@@ -107,11 +107,12 @@ class NeuralNetwork:
 
         # Power through the softmax and cross-entropy layers
         scores = affines[-1].forward(hidden, Ws[-1], bs[-1])
-        loss, losses, probs = softmax_ce.forward(scores, ys)
-
+        
         # Time to get out of here?
         if predict:
-            return probs
+            return scores
+
+        loss, losses, probs = softmax_ce.forward(scores, ys)
         
         # Backprop!
         dscores = softmax_ce.backward(1)

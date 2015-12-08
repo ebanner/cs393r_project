@@ -87,10 +87,9 @@ class Softmax:
         """Return the prediction of input examples X"""
         
         # Forward Pass (predictions)
-        scores = self.W @ X + self.b
-        probs = softmax_vectorized(scores)
+        scores = np.dot(self.W, X) + self.b
         
-        return probs.argmax(axis=0)
+        return scores, scores.argmax(axis=0)
     
     def forward_backward_prop(self, W=None, b=None):
         """Perform forward and backward prop over a minibatch of training examples
@@ -107,7 +106,7 @@ class Softmax:
         ys = self.ys_train[low:high]
         
         # Forward Pass (predictions)
-        scores = W @ X + b
+        scores = np.dot(W, X) + b
         probs = softmax_vectorized(scores)
         y_hats = probs[ys, range(self.batch_size)]
 
@@ -121,7 +120,7 @@ class Softmax:
         dscores[ys, range(self.batch_size)] -= 1
         
         db = dscores.sum(axis=1, keepdims=True)
-        dW = dscores @ X.T
+        dW = np.dot(dscores, X.T)
         
         # Regularization
         db += (self.regularizer*b)
