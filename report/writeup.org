@@ -12,465 +12,524 @@
   <<sec:intro>>
   
   The keeper of a robot soccer team is an important component to the
-  overall team. One task required of keepers is to execute save
-  motions when a shot is underway in an attempt to prevent the ball
-  from crossing the goal plane. Failure to detect a shot on goal could
-  mean an uncontested goal for the other team, while falsely
-  determining a shot on goal could result in an opportunity for the
-  attacking player to dribble around the goalie and score. Developing
-  a keeper behavior capable of reliably determining when a shot is
-  underways is the focus of this project.
+  overall team. A keeper's job, put quite bluntly, is to keep the game
+  ball out of its goal. One skill necessary for achieving this is
+  being able to detect when the game ball is on course to roll across
+  the keeper's goal plane.
 
-  Reference [[sec:intro]]
+  Having a good shot prediction model could be the difference between
+  a winning and losing team of robot soccer players. For instance,
+  failure to detect a shot on goal could mean an uncontested goal for
+  the other team, while falsely determining a shot on goal could
+  result in an opportunity for the attacking player to dribble around
+  the keeper and score. It is developing a keeper behavior capable of
+  /reliably/ determining when a shot is underway which is the focus of
+  this project.
 
-  To this end, I took a data-driven machine learning approach to this
-  problem. Specifically I trained discriminative models this task on
-  data generated in simulation.
+  To address this problem, I took a data-driven machine learning
+  approach. Specifically, I trained discriminative models on kick data
+  generated in simulation.
 
-  The outline of the this report will be as follows. First, I will
-  formalize the problem and describe the main components of my
-  approach. Next, I will discuss how my approach differs from keeper
-  behaviors in past robocup tournaments. After that, I will discuss
-  the process of generating a training set of shots via simulation,
-  the process of training discriminative models, and evaluation both
-  in simulation and on an Aldebran Nao robot. Finally I will conclude
-  with future work and limitations of my approach.
+  The outline of the this report will be as follows. In section
+  [[sec:approach]] I will formalize the problem of shot detectoin and
+  outline the main components of my approach. In section
+  [[sec:related_work]], I will discuss how my approach differs from keeper
+  behaviors in past robocup tournaments. In section [[sec:methodology]] I
+  will discuss the details of generating a training set of shots via
+  simulation, training discriminative models, and evaluation both in
+  simulation and on an Aldebran Nao robot. In section [[sec:conclusion]] I
+  will conclude with limitations of my approach, future directions of
+  work and highlight my contributions.
 
-  I will refer to my nao robot as Cheesy throughout.
+  Throughout this report, I will refer to my Aldebaran nao robot as
+  /Cheesy/.
 
 * Approach
+  <<sec:approach>>
 
-  The problem at hand is to develop a keeper behavior capable of
-  determining whether a shot is underway. Formally, I treat the
-  problem of shot detection as a supervised learning classification,
-  where the task is to find a function f:X -> Y where X = Powerset([x,
-  y, dx, dy, distance, bearing]) and Y = {no-shot, left-shot,
-  middle-shot, right-shot}. Here is a description of each of these
-  attributes:
+  The problem is to develop a keeper behavior capable of determining
+  whether a shot is underway on the keeper's goal. Formally, I treat
+  the problem of shot detection as a supervised learning problem,
+  where the goal is to find a function $f:X \rightarrow Y$ where $X$
+  contains information about the game ball and $Y$ = {no-shot,
+  left-shot, middle-shot, right-shot}. In particular, I investigate
+  the following features for shot detection:
 
   - (x, y): the position of ball in global coordinates
   - (dx, dy): the velocity of the ball in global coordinates
-  - (distance, bearing): the distance and bearing of the ball,
-    relative to Cheesy
+  - (distance, bearing): the distance and bearing of the ball in
+    Cheesy's local coordinate space
 
   Position and velocity estimates are derived via a Kalman filter and
   the distance and bearing are calculated from the ball detection code
-  in our vision module. Position and velocity are in global “top-down”
-  coordinates (see section WORLD) and distance and bearing are in
-  Cheesy’s local “egocentric” coordinate frame.
+  in Cheesy's vision module. Position and velocity are in global
+  “top-down” coordinates (see section [[sec:world]]) and distance and
+  bearing are in Cheesy’s local “egocentric” coordinate frame.
 
-  In this project, I explore using different feature spaces for
-  training. Specifically I look at using [x, y, dx, dy], [x, y], and
+  In this project, I explore different feature spaces during training.
+  Specifically I ran experiments with [x, y, dx, dy], [x, y], and
   [distance, bearing].
 
 * Related Work
+  <<sec:related_work>>
 
-  For the task of shot detection, the keeper generally has to model
-  the game ball. Previous approaches by past robocup teams typically
-  include modelling the velocity of the ball. In \cite{stone2004ut},
-  the team models velocity by populating a queue with the past several
-  global positional estimates of the ball. The queue is then split in
-  half. The two halves are averaged, resulting in two average
-  positions. These two positions are then used to calculate a velocity
-  vector in global coordinates. My approach is similar in that I also
-  explicitly model the velocity of the ball, but with a Kalman filter
-  instead.
+  Perhaps the most important prerequisite of reliable shot detection
+  is having an accurate model of the game ball. Previous approaches to
+  modelling the ball by past robocup teams typically include
+  estimating the position of the ball, as well as its velocity. In
+  \cite{stone2004ut}, the team models velocity by populating a
+  fixed-sized window of the most recent global ball positions. The
+  queue is then split in half. The two halves are averaged, resulting
+  in two average positions. These two positions are then used to
+  calculate a velocity vector. My approach is similar in that I also
+  explicitly model the velocity of the ball, but instead with a Kalman
+  filter.
   
-  Another approach to modeling the ball involves the use of a Kalman
-  Filter \cite{thrun2005probabilistic}, where the a Kalman filter is
+  Another approach to modeling the ball involves the use of a kalman
+  Filter \cite{thrun2005probabilistic}. A kalman filter here is
   maintained for each distinct hypothesis regarding where the ball
-  currently is. The team in \cite{thrun2005probabilistic} encodes their
-  prediction model with 2D kinematics, relating predicted position of
-  the ball at the next time step to its estimated velocity and
-  position at the previous time step, as well as the friction between
-  the ball and the floor \cite{rofer2010b}. In my approach, I do not incorporate
-  friction into the estimates for position, but I do use a Kalman
+  currently is. The team in \cite{thrun2005probabilistic} encodes
+  their prediction model with 2D kinematics, which relates future ball
+  positions with its estimated velocity and position at the previous
+  time step. Friction between the ball and floor is also incorporated.
+  \cite{rofer2010b}. In my approach, I do not incorporate friction
+  into the estimates for position, it is implicitly encoded in the
+  kick trajectories generated in simulation. But I do use a Kalman
   filter for modelling the ball.
   
-  One issue that arises with Kalman filters is that there are several
-  parameters that need to be tuned by hand. In
-  \cite{abbeel2005discriminative}, the authors train discriminative
-  models to learn these parameters, circumventing this issue. They
-  induce supervision by placing a highly accurate GPS sensor on the
-  robot whose position they are estimating. I did not pursue this
-  approach because I did not have a similar way to induce supervision
-  in a similar way.
+  One drawback with kalman filters is that there are several
+  parameters that need to be tuned by hand for them to work well. In
+  \cite{abbeel2005discriminative}, the authors circumvent this issue
+  by training discriminative models to learn these parameters,
+  circumventing this issue. They induce supervision by placing a
+  highly accurate GPS sensor on the robot whose position they are
+  estimating. I did not pursue this approach because I did not have a
+  similar way to induce supervision in a similar way. The overlap here
+  is in the use of discriminative models.
   
   Once a model of the ball has been obtained, it can be used as input
   to a shot detection algorithm. In \cite{stone2004ut}, the team uses
-  velocity of the ball to drive their decision whether to step to the
-  goalie left, right, or execute a save (although they do not
-  explicitly specify how this is done). In \cite{stone2003ut}, the
-  team simply executes a save motion when the ball gets within a
-  certain distance. The team in \cite{ratter2010runswift} forgoes
-  discrete “save” motions altogether, rather opting for an active
-  approach that includes pursuing the ball in hopes of intercepting
-  it. My approach is most similar to \cite{stone2004ut} in that the
-  models I trained will likely predict shot if that ball is close, but
-  my models have the ability of predicting no-shot when the ball is
-  very close, but not moving.
+  velocity of the ball to drive their decision whether to step the
+  keeper left, right, or execute a save (although they do not specify
+  how this is done). In \cite{stone2003ut}, the team simply executes a
+  save motion when the ball gets within a certain distance. The team
+  in \cite{ratter2010runswift} forgoes discrete “save” motions
+  altogether, rather opting for more of an active approach by pursuing
+  the ball in hopes of intercepting it. My approach is most similar to
+  \cite{stone2004ut} in that the models I train will likely predict a
+  shot if the ball is close, but a key difference is my models have
+  the ability of predicting no-shot even when the ball is very close
+  (but not moving).
   
-  The process of learning has been explored in robot soccer. For
+  The process of learning has been exploited in robot soccer. For
   example, the team in \cite{rofer2010b} learns to model the friction
   between the floor and the ball by rolling the ball in front of the
-  robot several times and calculating a parameter for this. In my
-  approach, I do not learn the friction of the surface, but rather
-  hard-code it into my algorithm for generating shots in simulation.
-  Another example is the team in \cite{riccio2015spqr}, in which they
-  use reinforcement learning and a policy gradient method, in addition
-  to genetic algorithms to optimize dive times. Unfortunately they do
-  not go into details and it is also not clear whether they are using
-  these learning approaches for optimizing how fast they can dive or
-  when to decide to dive.
+  robot several times and recording the decelleration of the ball. In
+  my approach, I do not learn the friction of the surface, but rather
+  set it to a fixed value. Another example is the team in
+  \cite{riccio2015spqr}, where they make use of reinforcement learning
+  and policy gradient methods, in addition to genetic algorithms to
+  optimize dive times. Unfortunately they do not go into details.
+  Further, it is not clear whether they use these learning approaches
+  for optimizing how /fast/ to dive or when to /decide/ to dive.
   
-  Learning from simulation has been explored in the robot soccer
-  domain. \cite{farchy2013humanoid} learns parameters for a robotic
-  walk in simulation, but does not use these learned parameters on
-  physical robots. In my approach, I learn shot detection parameters
-  in simulation and apply them directly to Cheesy.
+  Learning from simulation in particular has also been explored in the
+  robot soccer domain. \cite{farchy2013humanoid} learns parameters for
+  a robotic walk in simulation. However, the main difference in my
+  work is that I apply what is learned in simulation directly to a
+  physical robot.
 
 * Methodology
-  In this section, I will detail the components relating to the
-  end-to-end task of generating a good keeper behavior. I will start
-  by discussing data generation process. Then I will discuss the
-  models that train on this data. Finally, I will discuss evaluation
-  on synthetic data, as well as on Cheesy.
-
-** The World
-
-   The first step in a supervised learning problem is to secure
-   training data. I forgoed the idea of collecting data on Cheesy and
-   chose instead to generate shots in simulation.
-
-   In order to generate shots which closely matched what Cheesy would
-   experience, I used the Goalie Simulation tool Jake Menashe had
-   developed for our use during the Kalman Filter assignment. I this
-   simulation, when a shot is fired an initial velocity is set on the
-   ball and that velocity decays by a constant factor each time step.
-   Following the parameters that were used in the goalie simulator, I
-   used a decay of 0.966 and 150 time steps for a shot. This
-   corresponds to 3 seconds, since the vision code on Cheesy runs at
-   50 Hz. Figure JAKE_SIM provides a visual of the goalie simulation
-   tool.
-
-#+NAME: fig:goaliesim
-#+CAPTION: Visual of the goalie simulation tool we used in the Kalman filter assignment
-[[file:img/goaliesim.png]]
-
-   The green rectangle is 2,000 units tall and 3,000 units wide. 1
-   unit corresponds to 1mm in physical space. This field corresponds
-   exactly to the miniature field in the robot soccer lab.
+  <<sec:methodology>>
+  
+  In this section, I detail the end-to-end task of creating reliable
+  shot detection for a keeper behavior which makes use of
+  disciminative models trained on data generated via simulation. In
+  section [[sec:gen]], I discuss the data generation process. In section
+  [[sec:models]], I detail the models and training process. Finally in
+  section [[sec:eval]], I will discuss evaluation on synthetic data, as
+  well as on Cheesy himself.
   
 ** Data Generation
+   <<sec:gen>>
 
-   Because I wanted to be able to generate many shots in a systematic
-   way, I wrote my own version of the goalie simulator. Figure
-   SHOT-PIPELINE shows my approach to generating batches of shots via
-   simulation.
+*** The World
+    <<sec:world>>
 
-#+NAME: fig:shot-pipeline
-#+ATTR_LATEX: :float multicolumn
-#+CAPTION: Example of the entire kick-generation pipeline. First, kick are generated. Next, kick points behind the goal are filtered away. Finally, shots to the left and right portions of the goal, as well as misses are undersampled to achieve an identical number of data points for each kind of kick. A time step value of 10 and a decay of 0.8 was used to generate these plots
-[[file:img/shot_pipeline.png]]
+    The first step in a supervised learning problem is to secure
+    training data. I forgoed the idea of collecting data on Cheesy and
+    chose instead to generate shots in simulation due to the degree of
+    control it allows.
+
+    In order to generate shots which closely matched what Cheesy would
+    experience, I started off studying the Goalie Simulation tool Jake
+    developed for the class for the Kalman Filter assignment. In this
+    simulator, a kick corresponds to setting the initial velocity
+    shot on the game ball, stepping the ball forward by an amount
+    proportional to the velocity, and decaying the velocity by a
+    constant factor after each time step. Keeping true with the
+    parameters which were used in the Goalie Simulator, I used a decay
+    of 0.966 and 150 time steps for a kick. This corresponds to 3
+    seconds since Cheesy's vision module runs at 50 Hz. Figure
+    [[fig:goaliesim]] provides a visual of the keeper simulation tool.
+
+ #+NAME: fig:goaliesim
+ #+CAPTION: Visual of the Goalie Simulation tool we used in the Kalman filter assignment. Top left: the ball starts out in front of the keeper. Top right: a shot is fired and is approching the keeper. Bottom left: the kick is wide-right. Bottom right: the kick is short.
+ [[file:img/goaliesim.png]]
+
+    The green rectangle is 2,000 units tall and 3,000 units wide. 1
+    unit corresponds to 1mm in physical space. This field corresponds
+    exactly to the miniature field in the robot soccer lab. These
+    dimensions correspond to the dimensions of the field in the soccer
+    lab.
+  
+*** My Simulator
+
+    Because I wanted to be able to generate many shots in a systematic
+    way and because success in Jake's simulator translated to success
+    on Cheesy during the kalman filter assignment, I decided to write
+    my own version of the keeper simulator. Figure [[fig:shot-pipeline]]
+    shows my approach to generating an arbitrary number of shots via
+    simulation.
+
+ #+NAME: fig:shot-pipeline
+ #+ATTR_LATEX: :float multicolumn
+ #+CAPTION: Illustration of the entire kick-generation pipeline. First, kicks are generated. Next, kick points behind the goal (i.e. out of Cheesy's sight) are filtered away. Finally, shots into the left and right portions of the goal, as well as misses are undersampled to achieve so that the resulting number of shots and misses are approximately the same. A time step value of 10 and a decay of 0.8 was used to generate these plots. Red indicates misses. Yellow, blue and green indicate shots into the left, middle, and right regions of the goal, respectively.
+ [[file:img/shot_pipeline.png]]
    
-   Unlike the in the goalie simulator, my goal is half the height of
-   the field. This was the width given to the goal by our keeper
-   behavior in the Kalman filter assignment. Since I wanted to use
-   this behavior as a baseline, it made sense to encode the same width
-   for both behaviors.
+    In a departure from the Goalie Simulator, my goal is half the
+    height of the field, which is ostensibly significantly larger than
+    in the Goalie Simulator. This was the width assigned to the goal
+    by Cheesy's keeper behavior for the kalman filter assignment. I'll
+    refer to this behavior of KK (Kalman Keeper) from this point
+    forward. Since I wanted to use this behavior as a baseline, it
+    made sense to encode the same width for both behaviors.
 
-   To generate kicks, two grids are drawn on the field; one in front
-   of the goal and one around the goal. Shots were generated by
-   choosing a point in each of the two grids and solving for the
-   initial velocity required to have the ball land on the latter point
-   after 150 time steps (with the decay factor). A kick is deemed a
-   shot on goal if it crosses the goal plane before 150 time steps.
-   Further, the regions within the goal are divided up into left,
-   middle and right. The exact values for these boundaries once again
-   came from our kalman filter keeper behavior in order to maintain
-   consistency with the baseline. A small amount of gaussian random
-   noise is applied to the position component of each kick data point.
-   In general, I found that increasing the noise gives greater
-   coverage of the field, with the expense of decreased overall
-   accuracy.
+    To generate kicks, two grids are drawn on the field; one in front
+    of the goal and one around the goal. A kick is generated by
+    choosing a point in each of the two grids and solving for the
+    initial velocity required to have the ball land on the latter
+    point after 150 time steps, taking into account the decay factor.
+    A kick is deemed a shot on goal if it crosses the goal plane
+    before 150 time steps. Further, the regions within the goal are
+    divided up into left, middle and right. The exact values for these
+    boundaries once again came from the KK behavior in order to
+    maintain consistency with the baseline. A small amount of gaussian
+    random noise is applied to the position component of each kick
+    data point. In general, I found that increasing the noise to each
+    kick point yields greater coverage of the field, at the expense of
+    decreased overall accuracy.
 
-   After the kicks are generated, the kick points points behind the
-   goal are filtered away because they cannot be sensed by Cheesy.
-   Finally, shots into the left and right portion of the goal are
-   undersampled until they match the number of middle shots. Likewise,
-   misses are undersampled until the number of datapoints for misses
-   matches the total number of shot datapoints. This was the simplest
-   way to correct for class imbalance, which would hinder model
-   performance if not corrected for. Figure TRAINING_DATA gives a
-   visual of the total number of kick points for each type of kick.
+    After the kicks are generated, the kick points points behind the
+    goal are filtered away because they cannot be sensed by Cheesy.
+    Finally, shots into the left and right portion of the goal are
+    undersampled until they match the number of middle shots.
+    Likewise, misses are undersampled until the number of kick points
+    for misses matches the total number of shot points. This is a
+    simple way to correct for class imbalance, a phenomenon which
+    hurts model performance if not corrected for. Figure [[fig:dataset]]
+    gives a visual of the total number of kick points for each type of
+    kick.
 
-#+NAME: fig:dataset
-#+CAPTION: Full set of generated kicks. The class breakdown is as follows: 27230 data points for missed shots, 9039 for shots to the left, 9112 for shots to the middle, and 9017 for shots to the right.
-[[file:img/dataset.png]]
-
-   
-** Feature Sets
-
-   My models trained on the following feature sets:
-   
-   - Global position and velocity
-   - Global position
-   - Distance and Bearing
-   
-   The motivation for training on position and velocity is because
-   that is the data the kalman filter keeper uses for its shot
-   detection algorithm. The models trained on position and distance
-   and bearing are given the past 10 observations of each
-   respectively. If the ball is not seen for five consecutive frames,
-   then the window is cleared.
+ #+NAME: fig:dataset
+ #+CAPTION: Full set of generated kicks. The class breakdown is as follows: 27,230 points for missed shots and 9,039, 9112, and 9017 points for shots into the left, middle, and right portions of the goal, respectively.
+ [[file:img/dataset.png]]
 
 ** Models
-
-   The models I used for training include softmax, fully-connected
-   neural network, and recurrent neural network classifiers. Each
-   model uses a cross-entropy loss function. The softmax and
-   fully-connected neural networks are trained with backpropagation on
-   full batches of the training input. The recurrent neural network is
-   trained with backpropagation through time with a rollout of 10. The
-   fully-connected neural network has a one hidden layer of size 5
-   with sigmoid activation units and the RNN has one hidden state
-   vector with size 30 and uses tanh nonlinearities. Each model was
-   trained with a regularization term of 0.001. The softmax and FCNN
-   used learning rates of 0.1 and the RNN used a learning rate of
-   0.005.
-
-** Simulation Evaluation
-
-   Each of the models was tested on the data it was trained on. Here
-   are the accuracies.
+   <<sec:models>>
    
-#+NAME: tab:sim-acc
-#+CAPTION: Training accuracies of classifiers on synthetic data. Raw accuracy is how many times the classifier predicted the correct class. Shot accuracy counts the classifier’s prediction as correct if it predicts shot on a shot (e.g. predicting shot-middle when the correct label was shot-left).
-|              |    PV |    PV |     P |     P |    DB |    DB |
-|--------------+-------+-------+-------+-------+-------+-------|
-| Raw Accuracy |   Raw |  Shot |   Raw |  Shot |   Raw |  Shot |
-|--------------+-------+-------+-------+-------+-------+-------|
-| SM           | 0.547 | 0.547 | 0.616 | 0.648 | 0.774 | 0.857 |
-| FCNN         | 0.703 | 0.759 | 0.846 | 0.884 | 0.884 | 0.940 |
-| RNN*         | 0.685 | 0.736 | 0.521 | 0.632 | 0.864 | 0.891 |
+*** Feature Sets
 
-   Table SIM_ACC details the performance of each classifier on the
-   training data. A separate cross-validation/test set was not held
-   out because of the closed-world assumption, the idea being that the
-   shots seen during test time would be very similar.
-
-   The FCNN consistently outperforms the softmax classifier. The SM
-   classifier is only able to make coarse predictions, whereas the
-   FCNN is able to make finer-grained decisions (e.g. a ball that
-   starts out left will not necessarily end up left). The position and
-   distance and bearing feature spaces increase performance primarily
-   due to their input being windowed.
-
-   The recurrent neural network has an asterisk next to its name
-   because it was trained on a dataset which was an order of magnitude
-   smaller than the dataset the SM and FCNN classifiers were trained
-   on due to the increased demands of RNN on training data. The
-   training set it was trained on consisted of only 1,000 data points
-   and each shot only consisted of 10 time steps. This drastically
-   reduced the complexity of the domain and sped up training time
-   substantially.
-
-** Cheesy Evaluation
-
-   After training each of the models, I implemented of them on Cheesy
-   and conducted and evaluated each model and feature space
-   combination on the real soccer field. Figure REAL_FIELD shows
-   pictorially what each kick looked like.
+    The following feature sets were used as input to the
+    discriminative models:
    
-#+NAME: fig:shots
-#+CAPTION: The shots used to evaluate performance of keeper behaviors. Note there is a short kick in the “near” kicks, but no short kick among the “far” kicks.
-[[file:img/shots.png]]
-
-   I kicked the ball five times for every kick among the far and short
-   kicks illustrated in figure REAL_FIELD. For each behavior, I
-   plotted the confusion matrices. I chose not to perform a short kick
-   among the far kicks because it was too difficult to kick the ball
-   sufficiently close to Cheesy consistently. Additionally, I consider
-   the keeper has detected a wide shot correctly if it does nothing at
-   all (e.g. no false positive). Figure KEEPER_CONFUSION contains the
-   confusion matrices for the kalman keeper.
-
-#+NAME: fig:keeper-confusion
-#+CAPTION: Confusion matrices for our original kalman filter keeper behavior. Note there is no short kick among the far kicks; it is only included to maintain symmetry with the near kicks. Numbers on the off-diagonal indicate misclassification
-[[file:img/original-confusion.png]]
-
-   The kalman keeper does very well on long shots. However, it
-   struggles significantly on the shots close up. To be fair, the fact
-   it only predicts shot after deciding shot for several frames puts
-   it at a disadvantage, but in theory it should be able to classify
-   these correctly.
-
-   Figure SOFTMAX_CONFUSION show the confusion matrices for the
-   trained softmax classifiers on each of the input feature spaces
-   next to its predictions on the synthetic training data generated
-   via simulation.
-
-#+NAME: fig:softmax-confusion
-#+CAPTION: Predictions on synthetic data generated via simulation and confusion matrices during physical evaluation for softmax classifier
-#+ATTR_LATEX: :float multicolumn
-[[file:img/softmax-confusion.png]]
-
-   The position and velocity model learns to predict shot if the ball
-   gets close enough to the goal along the x-axis. It reports many
-   false positives because of this. The position model improves upon
-   the position and velocity model, but struggles with false positives
-   to the right. The distance and bearing model struggles with near
-   shots because of its large region for middle shots extending
-   outwards from the center of the goal.
-
-   Figure NN_CONFUSION show the confusion matrices for the trained
-   FCNN classifiers on each of the input feature spaces next to its
-   predictions on the synthetic training data generated via
-   simulation.
-
-#+NAME: fig:nn-confusion
-#+CAPTION: Predictions on synthetic data generated via simulation and confusion matrices during physical evaluation for FCNN classifier
-#+ATTR_LATEX: :float multicolumn
-[[file:img/nn-confusion.png]]
-
-   The position and velocity model learns a similar decision boundary
-   to the softmax classifier, but is capable of detecting wide shots.
-   The position model learns a good model of the most types of kicks.
-   The distance and bearing model is unable to discriminate between
-   shots up close, but does a good job at long distances.
-
-   Table BEHAVIOR_ACCS lists the accuracies for each keeper behavior.
-
-#+NAME: tab:field-acc
-#+CAPTION: Training accuracies of behaviors on during shot task. Raw accuracy is how many times the behavior predicted the correct class. Shot accuracy counts the behavior’s prediction as correct if it predicts shot on a shot (e.g. predicting shot-middle when the correct label was shot-left).
-#+ATTR_LATEX: :float multicolumn
-|        |       |   Far |       | Close |       | Total |
-|--------+-------+-------+-------+-------+-------+-------|
-|        |   Raw |  Shot |   Raw |  Shot |   Raw |  Shot |
-|--------+-------+-------+-------+-------+-------+-------|
-| Kalman | 0.960 | 1.000 | 0.600 | 0.600 | 0.764 | 0.782 |
-| SM PV  | 0.320 | 0.600 | 0.267 | 0.500 | 0.291 | 0.545 |
-| NN PV  | 0.440 | 0.720 | 0.500 | 0.667 | 0.473 | 0.691 |
-| SM P   | 0.600 | 0.640 | 0.833 | 0.833 | 0.727 | 0.745 |
-| NN P   | 0.760 | 0.760 | 0.633 | 0.767 | 0.691 | 0.764 |
-| SM DB  | 0.840 | 0.960 | 0.167 | 0.500 | 0.473 | 0.709 |
-| NN DB  | 0.880 | 1.000 | 0.533 | 0.600 | 0.691 | 0.782 |
-
-   Overall, the best behaviors are the kalman keeper and the FCNN
-   trained on distance and bearing. The position models are most
-   consistent between long and short shots.
-
-   The distance and bearing models’ performance on near shots was the
-   biggest disappointment. During my class demo, it looked as though
-   the distance and bearing models were performing the best. But that
-   was when the models were not differentiating between left, middle,
-   and right shots.
+    - Global position and velocity
+    - Global position
+    - Distance and Bearing
    
-   There are a few surprises here. Even though the softmax position
-   model was far less accurate than the neural network (table SIM_ACC)
-   in simulation, it does better in the kicking task. This could be
-   due to chance or it could be due to the fact that neural network
-   was overfitting and not able to learn general enough decision
-   boundaries.
+    The motivation for each of these sets is as follows: training on
+    position and velocity is what the KK behavior uses. Training on
+    just position is interesting because the velocity estimates tend
+    to be quite noisy. Training on just ball distance and bearing is
+    interesting because it throws away the kalman filter all-together.
+
+    Since it is impossible to predict shots when using the position
+    and distance and bearing feature sets without history, models
+    trained with these feature sets are given windows of the past 10
+    observations. If the ball is not seen for five consecutive frames,
+    then the window is cleared.
+
+*** Models
+
+    The discriminative models consist of softmax (SM), fully-connected
+    neural network (FCNN), and recurrent neural network (RNN)
+    classifiers. I implemented each of these models from scratch using
+    numpy.
+
+    Each model uses a cross-entropy function to measure loss. The SM
+    and FCNN are trained with backpropagation on full batches of the
+    training input. The RNN is trained with backpropagation through
+    time with a rollout of 10. The FCNN has a one hidden layer of size
+    5 with sigmoid activation units and the RNN has one hidden vector
+    with size 30 and uses tanh nonlinearities. Each model was trained
+    with a regularization term of 0.001. The softmax and FCNN used
+    learning rates of 0.1 and the RNN used a learning rate of 0.005.
+
+
+** Evaluation
+   <<sec:eval>>
+
    
-   The neural network trained on distance and vision bearing does well
-   at long distances, but poorer at short distances. This is
-   surprising since distance and bearing readings will be noisier at
-   longer distances due to noise in Cheesy’s camera.
+*** Simulation Evaluation
+    <<sec:sim-eval>>
+
+    Each model was tested on the entirety of the generated kick data.
+    Table [[tab:sim-acc]] shows the resulting accuracies.
    
-   It can be observed that the position models perform well at
-   detecting close shots and the distance and bearing models do much
-   better at longer distances. Ensembling these two methods has the
-   promise of substantially outperforming the original keeper behavior
-   overall. A simple weighting scheme where the distance and bearing
-   prediction is weighted proportionally with the ball distance seems
-   like a reasonable thing to do.
+ #+NAME: tab:sim-acc
+ #+CAPTION: Training accuracies of models on synthetic kick data. Raw accuracy is how many times the model predicted the correct class divided by the total number of kicks. Shot accuracy counts the model’s prediction as correct if it predicts shot on a shot (e.g. predicting shot-middle when the correct label was shot-left).
+ |              |    PV |    PV |     P |     P |    DB |    DB |
+ |--------------+-------+-------+-------+-------+-------+-------|
+ | Raw Accuracy |   Raw |  Shot |   Raw |  Shot |   Raw |  Shot |
+ |--------------+-------+-------+-------+-------+-------+-------|
+ | SM           | 0.547 | 0.547 | 0.616 | 0.648 | 0.774 | 0.857 |
+ | FCNN         | 0.703 | 0.759 | 0.846 | 0.884 | 0.884 | 0.940 |
+ | RNN*         | 0.685 | 0.736 | 0.521 | 0.632 | 0.864 | 0.891 |
+
+    Note the choice was made to not hold out a separate
+    cross-validation/test set because of the closed-world assumption.
+    The idea was that high performance on the kick data would
+    translate to high performance on Cheesy. This assumption is
+    revisited in section [[sec:cheesy-eval]].
+
+    The FCNN consistently outperforms the softmax classifier. As seen
+    in section [[sec:cheesy-eval]], the SM classifier is only capable of
+    making coarse predictions (e.g. a ball that starts left will most
+    likely end up left), whereas the FCNN is able to make more
+    fine-grained decisions. The increase in performance for the
+    position and distance and bearing feature spaces is most likely
+    attributed to the fact that they are being presented in windows.
+
+    The RNN has an asterisk because it was trained on a dataset which
+    was an order of magnitude smaller than the dataset the SM and FCNN
+    classifiers were trained on. This was due to the fact that RNNs
+    take much longer to train, given its training process cannot be
+    parallelized in any obvious way. The smaller training set
+    consisted of roughly 1,000 kick points and each kick only lasted
+    10 time steps. This drastically reduced the complexity of the
+    domain and sped up training time substantially. The RNN data set
+    is detailed in section [[sec:rnn]].
+
+*** Cheesy Evaluation
+    <<sec:cheesy-eval>>
+
+    Each of the models trained on each of the feature spaces were put
+    on Cheesy and an evaluation was conducted. The evaluation
+    consisted of /far/ kicks (i.e. kicks starting off near center
+    field) and /near/ kicks (i.e. kicks starting off very near
+    Cheesy). Figure [[fig:shots]] shows pictorially the trajectory of each
+    of the shots.
    
-   In order to increase performance with these models, it is tempting
-   to generate more data. But the more data points around the center
-   of the goal, the more difficult it becomes to discriminate between
-   them. This could be mitigated by increasing the window size, but
-   this comes at a cost as it takes longer to fill up the window,
-   which may result in a prediction of shot after the ball has already
-   gone by.
+ #+NAME: fig:shots
+ #+CAPTION: Trajectories of shots used during Cheesy evaluation. The kicks were grouped into /near/ kicks and /far/ kicks. Each kick was repeated five times. Note there is no short kick among the far kicks.
+ [[file:img/shots.png]]
 
-** False Positives
+    Each kick was repeated five times in an attempt to control for the
+    variance in my kicks. I chose not to perform a short kick among
+    the far kicks because it was too difficult to kick the ball
+    sufficiently close to Cheesy with good accuracy. Figure
+    [[fig:KK-confusion]] shows the confusion matrices for the KK behavior
+    on both near and far shots.
 
-   In addition to accuracies, I recorded the number of false positives
-   for each model. I defined a false positive as a prediction of shot
-   in between kicks. Cheesy had a chance to predict shot as I was
-   rolling the ball backwards to set up for the next kick and also
-   when the ball was sitting still, waiting to be kicked. Figure FPS
-   shows the number of false positive for each behavior.
+ #+NAME: fig:KK-confusion
+ #+CAPTION: Confusion matrices for the KK behavior. Note there is no short kick among the far kicks; it is only included to maintain symmetry with the near kicks. Number on the diagonal indicate correct predictions by the behavior. Number on the off-diagonal indicate misclassifications.
+ [[file:img/original-confusion.png]]
 
-#+NAME: fig:fps
-#+CAPTION: The number of false positives emitted by each behavior in between shots
-[[file:img/fps.png]]
+    The KK keeper does very well on long shots. However, it struggles
+    significantly on near shots. This is due primarily to the fact the
+    KK keeper only predicts shot if its thresholds are met for a
+    number of consecutive frames. Additionally, since it uses
+    velocities as estimated by a kalman filter, the ball has likely
+    passed by by the time velocity estimates are able to "catch up".
 
-   The original behavior has no false positives because it never
-   detects shots at close range. The models trained on position and
-   velocity have a high number of false positives because of the noisy
-   velocity estimates encountered during training for real. The
-   position models do not have as many false positives and the
-   distance and bearing models are somewhere in between.
+    Figure [[fig:softmax-confusion]] shows the predictions on the
+    synthetic kick data as well as the confusion matrices generated
+    during the Cheesy evaluation for the SM models trained on each of
+    the feature spaces.
 
-** Recurrent Neural Network
+ #+NAME: fig:softmax-confusion
+ #+CAPTION: Predictions made by SM models on synthetic data generated in simulation (left) and confusion matrices during Cheesy evaluation (right). Red corresponds to misses and yellow, blue, and green correspond to left, middle and right shots into the goal, respectively. Numbers along the diagonal correspond to correct predictions (confusion matrices). Numbers on the off-diagonal correspond to misclassification (confusion matrices).
+ #+ATTR_LATEX: :float multicolumn
+ [[file:img/softmax-confusion.png]]
 
-   As stated in table SIM_ACC, the recurrent neural network was
-   trained on a much smaller training set than the softmax and neural
-   network classifiers. Unfortunately, this smaller training set did
-   not result in a usable goalie behavior on Cheesy. Figure RNN shows
-   the kick data the RNN was trained on, as well as the predictions
-   for each of the feature spaces.
+    The SM PV model predicts shots well as long as they are on goal,
+    but struggles with wide kicks. The SM DB model struggles to
+    discriminate between left, middle, and right shots at close
+    distances. The SM P model is the best combination of the two,
+    performing well at long and short distances.
+
+    Figure [[fig:nn-confusion]] shows the predictions on the synthetic
+    kick data as well as confusion matrices for the FCNN models
+    trained on each of the input feature spaces as well as confusion
+    matrices generated during Cheesy evaluation.
+
+ #+NAME: fig:nn-confusion
+ #+CAPTION: Predictions made by FCNN models on synthetic data generated in simulation (left) and confusion matrices during Cheesy evaluation (right). Red corresponds to misses and yellow, blue, and green correspond to left, middle and right shots into the goal, respectively. Numbers along the diagonal correspond to correct predictions (confusion matrices). Numbers on the off-diagonal correspond to misclassification (confusion matrices).
+ #+ATTR_LATEX: :float multicolumn
+ [[file:img/nn-confusion.png]]
+
+    The FCNN PV model learns a similar decision boundary to the
+    softmax classifier, but is capable of detecting wide shots. The
+    Like the SM-DB model, the FCNN-DB model struggles with near shots,
+    but excels at long shots. The FCNN-P model performs the best all
+    around, similar to the SM-P model.
+
+    Table [[tab:cheesy-acc]] lists the accuracies for each keeper
+    behavior. Overall, the best behaviors are the KK keeper and the
+    FCNN-DB models. The SM-P and FCNN-P models are most consistent
+    between far and near shots.
+
+ #+NAME: tab:cheesy-acc
+ #+CAPTION: Training accuracies of keeper behaviors during Cheesy evaluation. Raw accuracy is how many times the behavior predicted the correct class. Shot accuracy counts the behavior’s prediction as correct if it predicts shot when shot (e.g. predicting shot-middle when the correct label was shot-left). SM-PV, SM-P, SM-DB corresponds to the SM keeper trained on the position and velocity, position, and distance and bearing feature sets, respectively. FCNN-PV, FCNN-P, FCNN-DB corresponds to the FCNN keeper trained on the position and velocity, position, and distance and bearing feature sets, respectively.
+ #+ATTR_LATEX: :float multicolumn
+ |         |   Far |   Far | Close | Close | Total | Total |
+ |---------+-------+-------+-------+-------+-------+-------|
+ |         |   Raw |  Shot |   Raw |  Shot |   Raw |  Shot |
+ |---------+-------+-------+-------+-------+-------+-------|
+ | KK      | 0.960 | 1.000 | 0.600 | 0.600 | 0.764 | 0.782 |
+ | SM-PV   | 0.320 | 0.600 | 0.267 | 0.500 | 0.291 | 0.545 |
+ | FCNN-PV | 0.440 | 0.720 | 0.500 | 0.667 | 0.473 | 0.691 |
+ | SM-P    | 0.600 | 0.640 | 0.833 | 0.833 | 0.727 | 0.745 |
+ | FCNN-P  | 0.760 | 0.760 | 0.633 | 0.767 | 0.691 | 0.764 |
+ | SM-DB   | 0.840 | 0.960 | 0.167 | 0.500 | 0.473 | 0.709 |
+ | FCNN-DB | 0.880 | 1.000 | 0.533 | 0.600 | 0.691 | 0.782 |
+
+ 
+*** Takeaways
+    
+    The SM-DB and FCNN-DB performance on near shots was the biggest
+    disappointment out of any of the models. During my class demo, it
+    looked as though the SM-DB and FCNN-DB models were performing the
+    best. But that was before Cheesy had to differentiate between
+    left, middle, and right shots. In general, it seems difficult to
+    rely solely on distance and bearing at close distances because the
+    window is so much smaller to make a prediction with far shots.
    
-#+NAME: fig:rnn
-#+CAPTION: Predictions for the RNN trained on Position+Velocity, Position, and Distance+Bearing, from left to right.
-[[file:img/rnn.png]]
+    Surprisingly, even though the SM-P model was far less accurate
+    than the FCNN-P model during simulation (see table [[tab:sim-acc]]),
+    it does better in the Cheesy evaluation. This is perhaps due to
+    overfitting on the FCNN-P on the training data. Using a separate
+    held-out cross-validation/test would have determined this for
+    sure (see section [[sec:sim-eval]]).
+   
+    The SM-DB and FCNN-DB do well at long distances perform very well
+    at long distances. This is partly surprising because distance and
+    bearing are unfiltered and are presumably noisier when the ball is
+    further away.
+   
+    Because the models trained on position do well with near shots and
+    models trained on ball distance and bearing do well with far
+    shots, one could /ensemble/ them together to achieve superior
+    performance. A simple weighting scheme where the distance and
+    bearing prediction is weighted proportionally with the ball
+    distance while the position prediction is weight inversely
+    proportional to the ball distance seems like a promising way to
+    ensemble these two models.
+   
+    In order to increase performance with these models, it is tempting
+    to try and generate more data. One must take care with this
+    approach as more data points cluster around in front of Cheesy
+    with different labels, the more difficult it becomes to
+    discriminate between them. A curious effect of adding misses
+    closer to Cheesy was his reaction time slowed down substantially.
+    This is presumably because he can not be completely sure a shot is
+    underway as misses were seen in that same location. Another
+    temptation is to increase the window size, but this comes at the
+    cost of it taking more time to fill up the window, which could
+    result in a slower reaction time.
 
-   The RNN is a very appealing model for a keeper behavior. It does
-   not require windowed input (unlike the softmax and FCNN keepers).
-   Given more time to train and adding an additional hidden layer in
-   front of the softmax layer, I am confident that it would achieve
-   performance comparable to the softmax and FCNN behaviors.
+*** False Positives
 
-* Limitations
+    In addition to accuracy, I recorded the number of false positives
+    each model made during Cheesy evaluation. I defined a false
+    positive as any prediction of shot in between kicks. Cheesy had a
+    chance to predict shot as I was rolling the ball backwards to set
+    up for the next kick and also when the ball was sitting still,
+    waiting to be kicked. Figure [[fig:fps]] shows the number of false
+    positive for each behavior.
 
-  All of the learned behaviors make the assumption the keeper remains
-  in a static position in the middle of the goal. In practice, it is
-  often favorable for the keeper to take a more active approach and
-  head off the attacker before the attacker can get into a good
-  striking position.
+ #+NAME: fig:fps
+ #+CAPTION: The number of false positives emitted by each behavior in between shots
+ [[file:img/fps.png]]
 
-* Future Work
+    The KK keeper has no false positives because it never detects
+    shots at close range. The models trained on position and velocity
+    have a high number of false positives due to the noisy velocity
+    estimates encountered during Cheesy evaluation. The position
+    models do not have as many false positives and the distance and
+    bearing models are somewhere in between.
 
-  The obvious future work would be to train these models for longer
-  periods of time and do a formal hyperparameter search via grid
-  search, or some other method. Additionally using more trianing data
-  would most likely help to improve performance. Additionally, noise
-  is a parameter that can be tweaked that may have interesting
-  affects.
-  
-  Along a more interesting line, the idea of using less and less
-  hand-crafted features is an appealing direction for future work.
-  Even using ball distance and bearing introduces substantial noise
-  that may prohibit the a keeper behavior from learning robust shot
-  detection. An exciting next step forward is to remove ball distance
-  and bearing features and rely solely on frame-space features such as
-  the location of the ball in Cheesy’s frame view along with the joint
-  angles of Cheesy’s head. The final step would be foregoing even
-  these features and relying solely on pixels for features.
-  
+*** Recurrent Neural Network
+    <<sec:rnn>>
+
+    As stated in table [[tab:sim-acc]], the RNN was trained on a much
+    smaller training set than the SM and FCNN classifiers.
+    Unfortunately, success high performance on this smaller training
+    set did not result in a usable keeper behavior on Cheesy. Figure
+    [[fig:rnn]] shows the kick data the RNN was trained on, as well as the
+    predictions for each of the feature spaces.
+   
+ #+NAME: fig:rnn
+ #+CAPTION: From top to bottom: the ground truth kick data used to train the RNN; predictions by the RNN when trained in the position and velocity, position, and distance and bearing feature spaces, respectively. Each shot consists of 10 time steps, and a decay of 10 is used. The number of misses is approximately 1,000 and the number of shots is approximately 1,000, which each type of shot (i.e. left, middle, right) having approximately 333 data points each.
+ [[file:img/rnn.png]]
+
+    The RNN is a very appealing model for a keeper behavior. It does
+    not require windowed input (unlike the softmax and FCNN keepers)
+    in the position and distance and bearing feature spaces. Given
+    more time to train and adding an additional hidden layer in front
+    of the softmax layer, I am confident that the RNN would achieve
+    performance comparable to the softmax and FCNN behaviors.
+
 * Conclusion
 
-  I implemented keeper behaviors that learn how to detect shots on
-  goal. I generated shots in simulation, used this data to train
-  discriminative models, implemented these models on Cheesy, and
-  evaluated them against the meticulously hand-crafted kalman keeper
-  behavior. I found models trained on position and ball distance and
-  bearing features alone to be competitive with the kalman keeper
-  behavior. Such work is one step towards moving away from
-  hand-crafting behaviors and taking more data-driven machine learning
-  approaches in the robot soccer domain.
+** Limitations
+
+   All of the learned behaviors make the assumption the keeper remains
+   in a static position in the middle of the goal. In practice, it is
+   often favorable for the keeper to take a more active approach and
+   head off the attacker before the attacker can get into a good
+   striking position.
+
+** Future Work
+
+   The obvious future work would be to train these models for longer
+   periods of time and do a formal hyperparameter search via grid
+   search, or some other method. Additionally using more trianing data
+   would most likely help to improve performance. Additionally, noise
+   is a parameter that can be tweaked that may have interesting
+   affects.
+  
+   Along a more interesting line, the idea of using less and less
+   hand-crafted features is an appealing direction for future work.
+   Even using ball distance and bearing introduces substantial noise
+   that may prohibit the a keeper behavior from learning robust shot
+   detection. An exciting next step forward is to remove ball distance
+   and bearing features and rely solely on frame-space features such as
+   the location of the ball in Cheesy’s frame view along with the joint
+   angles of Cheesy’s head. The final step would be foregoing even
+   these features and relying solely on pixels for features.
 
 \bibliographystyle{plain}
 \bibliography{database}
+** Recap
+   <<sec:conclusion>>
+
+   I implemented keeper behaviors that learn functions for detecting
+   shots on goal. I generated shots in simulation, used this data to
+   train discriminative models, implemented these models on Cheesy, and
+   evaluated them against the the KK keeper. I found models trained on
+   position and ball distance and bearing features alone to be
+   competitive with the kalman keeper behavior and their ensemble to
+   likely outperform the KK keeper. Such work is one step towards
+   moving away from hand-crafting behaviors and taking more data-driven
+   machine learning approaches in the robot soccer domain.
