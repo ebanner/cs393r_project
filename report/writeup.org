@@ -237,7 +237,7 @@
 
 ** Models
    <<sec:models>>
-   
+
 *** Feature Sets
 
     The following feature sets were used as input to the
@@ -267,13 +267,15 @@
     numpy.
 
     Each model uses a cross-entropy function to measure loss. The SM
-    and FCNN are trained with backpropagation on full batches of the
-    training input. The RNN is trained with backpropagation through
-    time with a rollout of 10. The FCNN has a one hidden layer of size
-    5 with sigmoid activation units and the RNN has one hidden vector
-    with size 30 and uses tanh nonlinearities. Each model was trained
-    with a regularization term of 0.001. The softmax and FCNN used
-    learning rates of 0.1 and the RNN used a learning rate of 0.005.
+    and FCNN are trained with backpropagation
+    \cite{rumelhart1988learning} on full batches of the training
+    input. The RNN is trained with backpropagation through time
+    \cite{werbos1990backpropagation} with a rollout of 10. The FCNN
+    has a one hidden layer of size 5 with sigmoid activation units and
+    the RNN has one hidden vector with size 30 and uses tanh
+    nonlinearities. Each model was trained with a regularization term
+    of 0.001. The softmax and FCNN used learning rates of 0.1 and the
+    RNN used a learning rate of 0.005.
 
 
 ** Evaluation
@@ -390,21 +392,20 @@
     between far and near shots.
 
  #+NAME: tab:cheesy-acc
- #+CAPTION: Training accuracies of keeper behaviors during Cheesy evaluation. Raw accuracy is how many times the behavior predicted the correct class. Shot accuracy counts the behavior’s prediction as correct if it predicts shot when shot (e.g. predicting shot-middle when the correct label was shot-left). SM-PV, SM-P, SM-DB corresponds to the SM keeper trained on the position and velocity, position, and distance and bearing feature sets, respectively. FCNN-PV, FCNN-P, FCNN-DB corresponds to the FCNN keeper trained on the position and velocity, position, and distance and bearing feature sets, respectively.
+ #+CAPTION: Training accuracies of keeper behaviors during Cheesy evaluation. Raw accuracy is how many times the behavior predicted the correct class. Shot accuracy counts the behavior’s prediction as correct if it predicts shot when shot (e.g. predicting shot-middle when the correct label was shot-left). SM-PV, SM-P, SM-DB corresponds to the SM keeper trained on the position and velocity, position, and distance and bearing feature sets, respectively. FCNN-PV, FCNN-P, FCNN-DB corresponds to the FCNN keeper trained on the position and velocity, position, and distance and bearing feature sets, respectively. The KK behavior predicts a shot if the average of the last three seen velocities is greater than 65cm/sec and the ball is within a distance of 75cm.
  #+ATTR_LATEX: :float multicolumn
- |         |   Far |   Far | Close | Close | Total | Total |
- |---------+-------+-------+-------+-------+-------+-------|
- |         |   Raw |  Shot |   Raw |  Shot |   Raw |  Shot |
- |---------+-------+-------+-------+-------+-------+-------|
- | KK      | 0.960 | 1.000 | 0.600 | 0.600 | 0.764 | 0.782 |
- | SM-PV   | 0.320 | 0.600 | 0.267 | 0.500 | 0.291 | 0.545 |
- | FCNN-PV | 0.440 | 0.720 | 0.500 | 0.667 | 0.473 | 0.691 |
- | SM-P    | 0.600 | 0.640 | 0.833 | 0.833 | 0.727 | 0.745 |
- | FCNN-P  | 0.760 | 0.760 | 0.633 | 0.767 | 0.691 | 0.764 |
- | SM-DB   | 0.840 | 0.960 | 0.167 | 0.500 | 0.473 | 0.709 |
- | FCNN-DB | 0.880 | 1.000 | 0.533 | 0.600 | 0.691 | 0.782 |
+ |         |     Far |     Far |   Close |   Close |   Total |   Total |
+ |---------+---------+---------+---------+---------+---------+---------|
+ |         |     Raw |    Shot |     Raw |    Shot |     Raw |    Shot |
+ |---------+---------+---------+---------+---------+---------+---------|
+ | KK      | *0.960* | *1.000* |   0.600 |   0.600 | *0.764* | *0.782* |
+ | SM-PV   |   0.320 |   0.600 |   0.267 |   0.500 |   0.291 |   0.545 |
+ | FCNN-PV |   0.440 |   0.720 |   0.500 |   0.667 |   0.473 |   0.691 |
+ | SM-P    |   0.600 |   0.640 | *0.833* | *0.833* |   0.727 |   0.745 |
+ | FCNN-P  |   0.760 |   0.760 |   0.633 |   0.767 |   0.691 |   0.764 |
+ | SM-DB   |   0.840 |   0.960 |   0.167 |   0.500 |   0.473 |   0.709 |
+ | FCNN-DB |   0.880 | *1.000* |   0.533 |   0.600 |   0.691 | *0.782* |
 
- 
 *** Takeaways
     
     The SM-DB and FCNN-DB performance on near shots was the biggest
@@ -494,42 +495,43 @@
 
 ** Limitations
 
-   All of the learned behaviors make the assumption the keeper remains
-   in a static position in the middle of the goal. In practice, it is
-   often favorable for the keeper to take a more active approach and
-   head off the attacker before the attacker can get into a good
-   striking position.
+   The SM, FCNN, and RNN behaviors make the assumption the keeper
+   remains in a static position in the middle of the goal. In
+   practice, it is often favorable for the keeper to take a more
+   active approach and head off the attacker before the attacker can
+   get into a good striking position. Hence adjustments would have to
+   be made to these behaviors. As long as the keeper can localize
+   reasonably well, these complications should not pose a large
+   difficulty for this framework.
 
 ** Future Work
 
-   The obvious future work would be to train these models for longer
-   periods of time and do a formal hyperparameter search via grid
-   search, or some other method. Additionally using more trianing data
-   would most likely help to improve performance. Additionally, noise
-   is a parameter that can be tweaked that may have interesting
-   affects.
+   The immediate future work would be to train these models for longer
+   periods of time and do a formal hyperparameter search.
   
    Along a more interesting line, the idea of using less and less
    hand-crafted features is an appealing direction for future work.
-   Even using ball distance and bearing introduces substantial noise
-   that may prohibit the a keeper behavior from learning robust shot
-   detection. An exciting next step forward is to remove ball distance
-   and bearing features and rely solely on frame-space features such as
-   the location of the ball in Cheesy’s frame view along with the joint
-   angles of Cheesy’s head. The final step would be foregoing even
-   these features and relying solely on pixels for features.
+   Even the use of just ball distance and bearing introduces
+   substantial noise that may prohibit the a keeper behavior from
+   learning robust shot detection. An exciting next step forward is to
+   remove ball distance and bearing features and rely solely on
+   frame-space features such as the location of the ball in Cheesy’s
+   field of view, along with the joint angles of Cheesy’s head. The
+   final step would be foregoing even these features and going
+   straight from vision to shot prediction.
 
-\bibliographystyle{plain}
-\bibliography{database}
 ** Recap
    <<sec:conclusion>>
 
    I implemented keeper behaviors that learn functions for detecting
-   shots on goal. I generated shots in simulation, used this data to
-   train discriminative models, implemented these models on Cheesy, and
-   evaluated them against the the KK keeper. I found models trained on
+   shots on goal. I generated kicks in simulation, used this data to
+   train discriminative models, implemented these models on Cheesy,
+   and evaluated them against the KK keeper. I found models trained on
    position and ball distance and bearing features alone to be
    competitive with the kalman keeper behavior and their ensemble to
    likely outperform the KK keeper. Such work is one step towards
-   moving away from hand-crafting behaviors and taking more data-driven
-   machine learning approaches in the robot soccer domain.
+   moving away from hand-crafting behavior thresholds and taking a
+   more data-driven approach to the robot soccer domain.
+
+\bibliographystyle{plain}
+\bibliography{database}
