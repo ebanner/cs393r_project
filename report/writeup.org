@@ -44,7 +44,7 @@
   Throughout this report, I will refer to my Aldebaran nao robot as
   /Cheesy/.
 
-* Approach
+* Problem Statement
   <<sec:approach>>
 
   The problem is to develop a keeper behavior capable of determining
@@ -274,8 +274,9 @@
     has a one hidden layer of size 5 with sigmoid activation units and
     the RNN has one hidden vector with size 30 and uses tanh
     nonlinearities. Each model was trained with a regularization term
-    of 0.001. The softmax and FCNN used learning rates of 0.1 and the
-    RNN used a learning rate of 0.005.
+    of 0.001. The SM and FCNN used learning rates of 0.1 and the RNN
+    used a learning rate of 0.005. These values were found by
+    hand-tuning.
 
 
 ** Evaluation
@@ -289,14 +290,14 @@
     Table [[tab:sim-acc]] shows the resulting accuracies.
    
  #+NAME: tab:sim-acc
- #+CAPTION: Training accuracies of models on synthetic kick data. Raw accuracy is how many times the model predicted the correct class divided by the total number of kicks. Shot accuracy counts the model’s prediction as correct if it predicts shot on a shot (e.g. predicting shot-middle when the correct label was shot-left).
- |              |    PV |    PV |     P |     P |    DB |    DB |
- |--------------+-------+-------+-------+-------+-------+-------|
- | Raw Accuracy |   Raw |  Shot |   Raw |  Shot |   Raw |  Shot |
- |--------------+-------+-------+-------+-------+-------+-------|
- | SM           | 0.547 | 0.547 | 0.616 | 0.648 | 0.774 | 0.857 |
- | FCNN         | 0.703 | 0.759 | 0.846 | 0.884 | 0.884 | 0.940 |
- | RNN*         | 0.685 | 0.736 | 0.521 | 0.632 | 0.864 | 0.891 |
+ #+CAPTION: Training accuracies of models on synthetic kick data. Raw accuracy is how many times the model predicted the correct class divided by the total number of kicks. Shot accuracy counts the model’s prediction as correct if it predicts shot on a shot (e.g. predicting shot-middle when the correct label was shot-left). PV, P, and DB are position and velocity, position, and distance and bearing, respectively.
+ |      |    PV |    PV |     P |     P |    DB |    DB |
+ |------+-------+-------+-------+-------+-------+-------|
+ |      |   Raw |  Shot |   Raw |  Shot |   Raw |  Shot |
+ |------+-------+-------+-------+-------+-------+-------|
+ | SM   | 0.547 | 0.547 | 0.616 | 0.648 | 0.774 | 0.857 |
+ | FCNN | 0.703 | 0.759 | 0.846 | 0.884 | 0.884 | 0.940 |
+ | RNN* | 0.685 | 0.736 | 0.521 | 0.632 | 0.864 | 0.891 |
 
     Note the choice was made to not hold out a separate
     cross-validation/test set because of the closed-world assumption.
@@ -326,14 +327,14 @@
     <<sec:cheesy-eval>>
 
     Each of the models trained on each of the feature spaces were put
-    on Cheesy and an evaluation was conducted. The evaluation
-    consisted of /far/ kicks (i.e. kicks starting off near center
-    field) and /near/ kicks (i.e. kicks starting off very near
-    Cheesy). Figure [[fig:shots]] shows pictorially the trajectory of each
-    of the shots.
+    on Cheesy and an evaluation in the real-world robot lab was
+    conducted. The evaluation consisted of /far/ kicks (i.e. kicks
+    starting off near center field) and /near/ kicks (i.e. kicks
+    starting off very near Cheesy). Figure [[fig:shots]] shows each of the
+    far and near kicks.
    
  #+NAME: fig:shots
- #+CAPTION: Trajectories of shots used during Cheesy evaluation. The kicks were grouped into /near/ kicks and /far/ kicks. Each kick was repeated five times. Note there is no short kick among the far kicks.
+ #+CAPTION: Trajectories of kicks used during Cheesy evaluation. The kicks were grouped into /near/ kicks and /far/ kicks. Each kick was repeated five times. Note there is no short kick among the far kicks.
  [[file:img/shots.png]]
 
     Each kick was repeated five times in an attempt to control for the
@@ -380,7 +381,7 @@
  #+ATTR_LATEX: :float multicolumn
  [[file:img/nn-confusion.png]]
 
-    The FCNN PV model learns a similar decision boundary to the
+    The FCNN-PV model learns a similar decision boundary to the
     softmax classifier, but is capable of detecting wide shots. The
     Like the SM-DB model, the FCNN-DB model struggles with near shots,
     but excels at long shots. The FCNN-P model performs the best all
@@ -392,7 +393,7 @@
     between far and near shots.
 
  #+NAME: tab:cheesy-acc
- #+CAPTION: Training accuracies of keeper behaviors during Cheesy evaluation. Raw accuracy is how many times the behavior predicted the correct class. Shot accuracy counts the behavior’s prediction as correct if it predicts shot when shot (e.g. predicting shot-middle when the correct label was shot-left). SM-PV, SM-P, SM-DB corresponds to the SM keeper trained on the position and velocity, position, and distance and bearing feature sets, respectively. FCNN-PV, FCNN-P, FCNN-DB corresponds to the FCNN keeper trained on the position and velocity, position, and distance and bearing feature sets, respectively. The KK behavior predicts a shot if the average of the last three seen velocities is greater than 65cm/sec and the ball is within a distance of 75cm.
+ #+CAPTION: Training accuracies of keeper behaviors during Cheesy evaluation. Raw accuracy is how many times the behavior predicted the correct class. Shot accuracy counts the behavior’s prediction as correct if it predicts shot when shot (e.g. predicting shot-middle when the correct label was shot-left). SM-PV, SM-P, SM-DB corresponds to the SM keeper trained on the position and velocity, position, and distance and bearing feature sets, respectively. FCNN-PV, FCNN-P, FCNN-DB corresponds to the FCNN keeper trained on the position and velocity, position, and distance and bearing feature sets, respectively. The KK behavior predicts a shot if the average of the last three seen velocities is greater than 65cm/sec and the ball is within a distance of 75cm. Highest accuracies are bolded.
  #+ATTR_LATEX: :float multicolumn
  |         |     Far |     Far |   Close |   Close |   Total |   Total |
  |---------+---------+---------+---------+---------+---------+---------|
@@ -423,10 +424,9 @@
     held-out cross-validation/test would have determined this for
     sure (see section [[sec:sim-eval]]).
    
-    The SM-DB and FCNN-DB do well at long distances perform very well
-    at long distances. This is partly surprising because distance and
-    bearing are unfiltered and are presumably noisier when the ball is
-    further away.
+    The SM-DB and FCNN-DB perform very well with far shots. This is
+    partly surprising because distance and bearing are unfiltered and
+    are presumably noisier when the ball is further away.
    
     Because the models trained on position do well with near shots and
     models trained on ball distance and bearing do well with far
@@ -460,7 +460,7 @@
     positive for each behavior.
 
  #+NAME: fig:fps
- #+CAPTION: The number of false positives emitted by each behavior in between shots
+ #+CAPTION: The number of false positives emitted by each behavior in between shots.
  [[file:img/fps.png]]
 
     The KK keeper has no false positives because it never detects
